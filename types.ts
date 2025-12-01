@@ -1,16 +1,16 @@
 export interface PropertyInput {
   address: string;
-  price: number;
-  monthlyRent: number;
-  rehabCost: number;
-  propertyTaxYearly: number;
-  insuranceYearly: number;
-  managementFeePercent: number;
-  mortgageMonthly: number;
+  price: number | '';
+  monthlyRent: number | '';
+  rehabCost: number | '';
+  propertyTaxYearly: number | '';
+  insuranceYearly: number | '';
+  managementFeePercent: number | '';
+  mortgageMonthly: number | '';
   description?: string;
-  bedrooms?: number;
-  bathrooms?: number;
-  sqMeters?: number;
+  bedrooms?: number | '';
+  bathrooms?: number | '';
+  sqMeters?: number | '';
   propertyType?: string;
 }
 

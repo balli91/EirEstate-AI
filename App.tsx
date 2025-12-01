@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PropertyInput, AnalysisResult, MarketInsight, LoadingState } from './types';
-import { calculateROI, formatCurrency } from './utils/calculations';
+import { calculateROI, formatCurrency, calculateLPT } from './utils/calculations';
 import { parsePropertyDescription, analyzeMarket } from './services/gemini';
 import { DEFAULT_PROPERTY, PROPERTY_TYPES } from './constants';
 import MetricsCard from './components/MetricsCard';
@@ -26,7 +26,8 @@ import {
   AlertCircle,
   Bath,
   Home,
-  Banknote
+  Banknote,
+  Percent
 } from 'lucide-react';
 
 // Helper component to render clean formatted text from AI output
@@ -161,26 +162,65 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Auto-calculate LPT when price changes
+  useEffect(() => {
+    const price = Number(formData.price);
+    
+    // Debug log for LPT calc verification
+    // console.log("Calculating LPT for price:", price);
+
+    if (price > 0) {
+      const updatedLPT = calculateLPT(price);
+      // console.log("Calculated LPT:", updatedLPT);
+
+      // Only update if the value is different to avoid infinite loops
+      if (formData.propertyTaxYearly !== updatedLPT) {
+        setFormData(prev => ({
+          ...prev,
+          propertyTaxYearly: updatedLPT
+        }));
+      }
+    } else {
+      // If price is 0 or empty, clear LPT if it's not already cleared
+      if (formData.propertyTaxYearly !== '') {
+         setFormData(prev => ({
+          ...prev,
+          propertyTaxYearly: ''
+        }));
+      }
+    }
+  }, [formData.price]);
+
   // Recalculate whenever form data changes
   useEffect(() => {
     // Comprehensive validation before calculating
     const newErrors: {[key: string]: string} = {};
     
+    // Convert inputs to numbers for validation checks (handling empty strings)
+    const monthlyRent = Number(formData.monthlyRent);
+    const rehabCost = Number(formData.rehabCost);
+    const bedrooms = Number(formData.bedrooms);
+    const bathrooms = Number(formData.bathrooms);
+    const sqMeters = Number(formData.sqMeters);
+    const tax = Number(formData.propertyTaxYearly);
+    const insurance = Number(formData.insuranceYearly);
+    const fee = Number(formData.managementFeePercent);
+    const mortgage = Number(formData.mortgageMonthly);
+
     // Core Financials - Relaxed validation for real-time calc
-    // We allow 0 so calculations can show 0% instead of blocking
-    if (formData.monthlyRent < 0) newErrors.monthlyRent = "Rent cannot be negative";
-    if (formData.rehabCost < 0) newErrors.rehabCost = "Cost cannot be negative";
+    if (monthlyRent < 0) newErrors.monthlyRent = "Rent cannot be negative";
+    if (rehabCost < 0) newErrors.rehabCost = "Cost cannot be negative";
     
     // Property Specs
-    if ((formData.bedrooms || 0) < 0) newErrors.bedrooms = "Bedrooms cannot be negative";
-    if ((formData.bathrooms || 0) < 0) newErrors.bathrooms = "Bathrooms cannot be negative";
-    if ((formData.sqMeters || 0) < 0) newErrors.sqMeters = "Area cannot be negative";
+    if (bedrooms < 0) newErrors.bedrooms = "Bedrooms cannot be negative";
+    if (bathrooms < 0) newErrors.bathrooms = "Bathrooms cannot be negative";
+    if (sqMeters < 0) newErrors.sqMeters = "Area cannot be negative";
     
     // Expenses
-    if (formData.propertyTaxYearly < 0) newErrors.propertyTaxYearly = "Tax cannot be negative";
-    if (formData.insuranceYearly < 0) newErrors.insuranceYearly = "Insurance cannot be negative";
-    if (formData.managementFeePercent < 0) newErrors.managementFeePercent = "Fee cannot be negative";
-    if ((formData.mortgageMonthly || 0) < 0) newErrors.mortgageMonthly = "Mortgage cannot be negative";
+    if (tax < 0) newErrors.propertyTaxYearly = "Tax cannot be negative";
+    if (insurance < 0) newErrors.insuranceYearly = "Insurance cannot be negative";
+    if (fee < 0) newErrors.managementFeePercent = "Fee cannot be negative";
+    if (mortgage < 0) newErrors.mortgageMonthly = "Mortgage cannot be negative";
     
     setErrors(newErrors);
 
@@ -190,12 +230,24 @@ const App: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: name === 'address' || name === 'description' || name === 'propertyType' 
-        ? value 
-        : (value === '' ? 0 : parseFloat(value)) // Handle empty string as 0 to avoid NaN
-    }));
+    
+    // Handle text fields normally
+    if (name === 'address' || name === 'description' || name === 'propertyType') {
+      setFormData(prev => ({ ...prev, [name]: value }));
+      return;
+    }
+
+    // Handle numeric fields
+    if (value === '') {
+      // Allow empty string to clear the field
+      setFormData(prev => ({ ...prev, [name]: '' }));
+    } else {
+      // Allow only integer inputs (positive numbers)
+      if (/^\d+$/.test(value)) {
+        // Parse int to remove leading zeros, but allow the user to type naturally
+        setFormData(prev => ({ ...prev, [name]: parseInt(value, 10) }));
+      }
+    }
   };
 
   const handleSmartFill = async () => {
@@ -215,17 +267,36 @@ const App: React.FC = () => {
     setParseError(null);
     try {
       const parsedData = await parsePropertyDescription(trimmedInput);
-      setFormData(prev => ({
-        ...prev,
-        ...parsedData,
-        // Keep defaults if parsing returns null/undefined for specifics
-        price: parsedData.price || prev.price,
-        address: parsedData.address || prev.address,
-        bedrooms: parsedData.bedrooms || prev.bedrooms,
-        bathrooms: parsedData.bathrooms || prev.bathrooms,
-        propertyType: parsedData.propertyType || prev.propertyType,
-      }));
-      setActiveTab('manual'); // Switch back to view the filled form
+      
+      console.log("Imported data:", parsedData);
+      console.log("Updating state fields...");
+
+      setFormData(prev => {
+        // Start fresh with default property values to clear any previous data
+        const nextState = { ...DEFAULT_PROPERTY };
+
+        // Overwrite with parsed data
+        if (parsedData.address) nextState.address = parsedData.address;
+        if (parsedData.price !== undefined) nextState.price = parsedData.price;
+        if (parsedData.bedrooms !== undefined) nextState.bedrooms = parsedData.bedrooms;
+        if (parsedData.bathrooms !== undefined) nextState.bathrooms = parsedData.bathrooms;
+        if (parsedData.sqMeters !== undefined) nextState.sqMeters = parsedData.sqMeters;
+        if (parsedData.propertyType) nextState.propertyType = parsedData.propertyType;
+        if (parsedData.monthlyRent !== undefined) nextState.monthlyRent = parsedData.monthlyRent;
+        if (parsedData.description) nextState.description = parsedData.description;
+
+        // Automatically recalculate LPT based on the imported price to ensure strict accuracy
+        const priceNum = Number(nextState.price);
+        if (priceNum > 0) {
+            nextState.propertyTaxYearly = calculateLPT(priceNum);
+        } else {
+            nextState.propertyTaxYearly = 0;
+        }
+
+        return nextState;
+      });
+
+      setActiveTab('manual'); 
     } catch (err: any) {
       console.error(err);
       setParseError(err.message || "Failed to extract data. Please try again or enter details manually.");
@@ -240,7 +311,7 @@ const App: React.FC = () => {
       const insight = await analyzeMarket(
         formData.address || "Dublin, Ireland",
         `${formData.bedrooms || 2}-bed ${formData.propertyType || 'House'}`,
-        formData.price
+        Number(formData.price) || 0
       );
       setMarketInsight(insight);
     } catch (err) {
@@ -407,7 +478,9 @@ const App: React.FC = () => {
                             <div className="relative">
                               <Euro className="absolute left-3 top-2.5 h-4 w-4 text-emerald-600" />
                               <input
-                                type="number"
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 name="price"
                                 value={formData.price}
                                 onChange={handleInputChange}
@@ -421,7 +494,9 @@ const App: React.FC = () => {
                              <div className="relative">
                               <Wrench className="absolute left-3 top-2.5 h-4 w-4 text-emerald-600" />
                               <input
-                                type="number"
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 name="rehabCost"
                                 value={formData.rehabCost}
                                 onChange={handleInputChange}
@@ -439,9 +514,11 @@ const App: React.FC = () => {
                             <div className="relative">
                               <BedDouble className="absolute left-3 top-2.5 h-4 w-4 text-emerald-600" />
                               <input
-                                type="number"
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 name="bedrooms"
-                                value={formData.bedrooms || 0}
+                                value={formData.bedrooms !== undefined ? formData.bedrooms : ''}
                                 onChange={handleInputChange}
                                 className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.bedrooms ? 'border-rose-500' : 'border-slate-300'}`}
                               />
@@ -453,9 +530,11 @@ const App: React.FC = () => {
                             <div className="relative">
                               <Bath className="absolute left-3 top-2.5 h-4 w-4 text-emerald-600" />
                               <input
-                                type="number"
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 name="bathrooms"
-                                value={formData.bathrooms || 0}
+                                value={formData.bathrooms !== undefined ? formData.bathrooms : ''}
                                 onChange={handleInputChange}
                                 className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.bathrooms ? 'border-rose-500' : 'border-slate-300'}`}
                               />
@@ -471,9 +550,11 @@ const App: React.FC = () => {
                             <div className="relative">
                               <Maximize className="absolute left-3 top-2.5 h-4 w-4 text-emerald-600" />
                               <input
-                                type="number"
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 name="sqMeters"
-                                value={formData.sqMeters || 0}
+                                value={formData.sqMeters !== undefined ? formData.sqMeters : ''}
                                 onChange={handleInputChange}
                                 className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.sqMeters ? 'border-rose-500' : 'border-slate-300'}`}
                               />
@@ -505,14 +586,19 @@ const App: React.FC = () => {
                       <h4 className="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">Rental Income</h4>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <InputLabel label="Est. Monthly Rent (€)" tooltip="Expected monthly rental income" />
-                            <input
-                            type="number"
-                            name="monthlyRent"
-                            value={formData.monthlyRent}
-                            onChange={handleInputChange}
-                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.monthlyRent ? 'border-rose-500' : 'border-slate-300'}`}
-                            />
+                            <InputLabel label="Est. Rent (€)" tooltip="Expected monthly rental income" />
+                            <div className="relative">
+                              <Euro className="absolute left-3 top-2.5 h-4 w-4 text-emerald-600" />
+                              <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              name="monthlyRent"
+                              value={formData.monthlyRent}
+                              onChange={handleInputChange}
+                              className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.monthlyRent ? 'border-rose-500' : 'border-slate-300'}`}
+                              />
+                            </div>
                             {errors.monthlyRent && <p className="text-xs text-rose-500 mt-1">{errors.monthlyRent}</p>}
                         </div>
                       </div>
@@ -523,47 +609,67 @@ const App: React.FC = () => {
                       <h4 className="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">Operating Expenses</h4>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <InputLabel label="Property Tax" tooltip="Annual Local Property Tax (LPT)" />
-                          <input
-                            type="number"
-                            name="propertyTaxYearly"
-                            value={formData.propertyTaxYearly}
-                            onChange={handleInputChange}
-                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.propertyTaxYearly ? 'border-rose-500' : 'border-slate-300'}`}
-                          />
-                          {errors.propertyTaxYearly && <p className="text-xs text-rose-500 mt-1">{errors.propertyTaxYearly}</p>}
+                          <InputLabel label="Property Tax (€)" tooltip="Annual Local Property Tax (LPT) - Auto-calculated based on price" />
+                          <div className="relative">
+                            <Euro className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              name="propertyTaxYearly"
+                              value={formData.propertyTaxYearly}
+                              readOnly
+                              className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold text-slate-500 bg-slate-100 cursor-not-allowed select-none"
+                              title="Auto-calculated based on property value bands"
+                            />
+                          </div>
                         </div>
                         <div>
-                          <InputLabel label="Insurance" tooltip="Annual property insurance cost" />
-                          <input
-                            type="number"
-                            name="insuranceYearly"
-                            value={formData.insuranceYearly}
-                            onChange={handleInputChange}
-                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.insuranceYearly ? 'border-rose-500' : 'border-slate-300'}`}
-                          />
+                          <InputLabel label="Insurance (€)" tooltip="Annual property insurance cost" />
+                          <div className="relative">
+                            <Euro className="absolute left-3 top-2.5 h-4 w-4 text-emerald-600" />
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              name="insuranceYearly"
+                              value={formData.insuranceYearly}
+                              onChange={handleInputChange}
+                              className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.insuranceYearly ? 'border-rose-500' : 'border-slate-300'}`}
+                            />
+                          </div>
                           {errors.insuranceYearly && <p className="text-xs text-rose-500 mt-1">{errors.insuranceYearly}</p>}
                         </div>
                         <div>
                           <InputLabel label="Mortgage (€)" tooltip="Monthly mortgage repayment" />
-                          <input
-                            type="number"
-                            name="mortgageMonthly"
-                            value={formData.mortgageMonthly || 0}
-                            onChange={handleInputChange}
-                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.mortgageMonthly ? 'border-rose-500' : 'border-slate-300'}`}
-                          />
+                          <div className="relative">
+                            <Euro className="absolute left-3 top-2.5 h-4 w-4 text-emerald-600" />
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              name="mortgageMonthly"
+                              value={formData.mortgageMonthly !== undefined ? formData.mortgageMonthly : ''}
+                              onChange={handleInputChange}
+                              className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.mortgageMonthly ? 'border-rose-500' : 'border-slate-300'}`}
+                            />
+                          </div>
                           {errors.mortgageMonthly && <p className="text-xs text-rose-500 mt-1">{errors.mortgageMonthly}</p>}
                         </div>
                         <div>
                           <InputLabel label="Mgmt Fee (%)" tooltip="Property management fee percentage (of rent)" />
-                          <input
-                            type="number"
-                            name="managementFeePercent"
-                            value={formData.managementFeePercent}
-                            onChange={handleInputChange}
-                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.managementFeePercent ? 'border-rose-500' : 'border-slate-300'}`}
-                          />
+                          <div className="relative">
+                            <Percent className="absolute left-3 top-2.5 h-4 w-4 text-emerald-600" />
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              name="managementFeePercent"
+                              value={formData.managementFeePercent}
+                              onChange={handleInputChange}
+                              className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.managementFeePercent ? 'border-rose-500' : 'border-slate-300'}`}
+                            />
+                          </div>
                           {errors.managementFeePercent && <p className="text-xs text-rose-500 mt-1">{errors.managementFeePercent}</p>}
                         </div>
                       </div>

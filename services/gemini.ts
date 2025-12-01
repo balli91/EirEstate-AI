@@ -36,15 +36,24 @@ export const parsePropertyDescription = async (input: string): Promise<Partial<P
 
         **Daft.ie Extraction Rules:**
         - Address: Extract the full property address.
-        - Price: Look for the listing price (e.g. €350,000). If "Price on Application" or POA, use 0. If SOLD, use the SOLD price.
-        - Beds: Look for "X Bed" (e.g., 3 Bed).
-        - Baths: Look for "X Bath" (e.g., 2 Bath).
-        - Area: Look for "X m²" or "X sq. m".
-        - Type: Look for property type (e.g., Semi-D, Detached, Terrace, Apartment).
+        - Price: Locate the div with attribute 'data-testid="price"'. Inside this div, find the <h2> element. Extract the exact text content (e.g., "€895,000"). You MUST remove the '€' symbol and ALL commas. Treat commas strictly as thousands separators (not decimals). Example: "€895,000" becomes 895000. Do NOT round, truncate, or return zero. If the element is missing or POA, return null.
+        
+        **Property Specs (Critical):**
+        - Look for the main property info bar which typically contains Beds, Baths, Area, and Type in that order.
+        - Beds: Look for text like "3 Bed" or "4 Bed". (Corresponds to data-testid="beds")
+        - Baths: Look for text like "1 Bath" or "3 Bath". (Corresponds to data-testid="baths")
+        - Area: Look for text like "108 m²" or "125 sq. m". (Corresponds to data-testid="floor-area")
+        - Type: Look for text like "Semi-D", "Terraced", "Detached", "Apartment". (Corresponds to data-testid="property-type")
+        
+        **Property Type Mapping:**
+        - If type is "Semi-D", map to "Semi-Detached House"
+        - If type is "Terraced", map to "Terraced House"
+        - If type is "End of Terrace", map to "End of Terrace House"
+        - If type is "Bungalow", map to "Bungalow"
 
         Return a JSON object with these exact keys:
         - address (string)
-        - price (number, numeric value only)
+        - price (number, integer only)
         - bedrooms (number, or null if not found)
         - bathrooms (number, or null if not found)
         - sqMeters (number, or null if not found)
@@ -109,7 +118,7 @@ export const parsePropertyDescription = async (input: string): Promise<Partial<P
             type: Type.OBJECT,
             properties: {
               address: { type: Type.STRING },
-              price: { type: Type.NUMBER, description: "Listing price in Euros" },
+              price: { type: Type.NUMBER, description: "Listing price in Euros. Treat commas as thousands separators (e.g. 895,000 = 895000)." },
               bedrooms: { type: Type.NUMBER },
               bathrooms: { type: Type.NUMBER },
               sqMeters: { type: Type.NUMBER },
