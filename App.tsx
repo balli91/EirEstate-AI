@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PropertyInput, AnalysisResult, MarketInsight, LoadingState } from './types';
-import { calculateROI, formatCurrency, calculateLPT } from './utils/calculations';
+import { calculateROI, formatCurrency, calculateLPT, calculateInsurance } from './utils/calculations';
 import { parsePropertyDescription, analyzeMarket } from './services/gemini';
 import { DEFAULT_PROPERTY, PROPERTY_TYPES } from './constants';
 import MetricsCard from './components/MetricsCard';
@@ -191,6 +191,23 @@ const App: React.FC = () => {
     }
   }, [formData.price]);
 
+  // Auto-calculate Insurance
+  useEffect(() => {
+    const price = Number(formData.price);
+    const sqMeters = Number(formData.sqMeters);
+    const type = formData.propertyType || 'House';
+    const address = formData.address || '';
+    
+    if (price > 0) {
+      const updatedInsurance = calculateInsurance(price, type, sqMeters, address);
+      if (formData.insuranceYearly !== updatedInsurance) {
+        setFormData(prev => ({ ...prev, insuranceYearly: updatedInsurance }));
+      }
+    } else if (formData.insuranceYearly !== '') {
+        setFormData(prev => ({ ...prev, insuranceYearly: '' }));
+    }
+  }, [formData.price, formData.propertyType, formData.sqMeters, formData.address]);
+
   // Recalculate whenever form data changes
   useEffect(() => {
     // Comprehensive validation before calculating
@@ -289,8 +306,10 @@ const App: React.FC = () => {
         const priceNum = Number(nextState.price);
         if (priceNum > 0) {
             nextState.propertyTaxYearly = calculateLPT(priceNum);
+            nextState.insuranceYearly = calculateInsurance(priceNum, nextState.propertyType || 'House', Number(nextState.sqMeters), nextState.address);
         } else {
             nextState.propertyTaxYearly = 0;
+            nextState.insuranceYearly = 0;
         }
 
         return nextState;
@@ -333,6 +352,9 @@ const App: React.FC = () => {
 
     const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
 
+    // Focus window to help browser security checks for clipboard/share
+    window.focus();
+
     // Use Web Share API if available, otherwise copy to clipboard
     if (navigator.share) {
       try {
@@ -343,14 +365,22 @@ const App: React.FC = () => {
         });
       } catch (err) {
         // Fallback if user cancels or share fails
-        navigator.clipboard.writeText(shareUrl);
-        setShareSuccess(true);
-        setTimeout(() => setShareSuccess(false), 2000);
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            setShareSuccess(true);
+            setTimeout(() => setShareSuccess(false), 2000);
+        } catch (clipboardErr) {
+             console.error("Clipboard write failed", clipboardErr);
+        }
       }
     } else {
-      navigator.clipboard.writeText(shareUrl);
-      setShareSuccess(true);
-      setTimeout(() => setShareSuccess(false), 2000);
+      try {
+          await navigator.clipboard.writeText(shareUrl);
+          setShareSuccess(true);
+          setTimeout(() => setShareSuccess(false), 2000);
+       } catch (clipboardErr) {
+          console.error("Clipboard write failed", clipboardErr);
+       }
     }
   };
 
@@ -375,7 +405,7 @@ const App: React.FC = () => {
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Property Analysis</h1>
-            <p className="text-slate-500 mt-2">Calculate ROI, Yield, and get smart market insights instantly.</p>
+            <p className="text-slate-500 mt-2">Calculate ROI, yield, and get smart market insights instantly with ÉirEstate AI.</p>
           </div>
           <button
             onClick={handleShare}
@@ -627,18 +657,18 @@ const App: React.FC = () => {
                         <div>
                           <InputLabel label="Insurance (€)" tooltip="Annual property insurance cost" />
                           <div className="relative">
-                            <Euro className="absolute left-3 top-2.5 h-4 w-4 text-emerald-600" />
+                            <Euro className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                             <input
                               type="text"
                               inputMode="numeric"
                               pattern="[0-9]*"
                               name="insuranceYearly"
                               value={formData.insuranceYearly}
-                              onChange={handleInputChange}
-                              className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.insuranceYearly ? 'border-rose-500' : 'border-slate-300'}`}
+                              readOnly
+                              className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold text-slate-500 bg-slate-100 cursor-not-allowed select-none"
+                              title="Auto-calculated based on price, type, and size"
                             />
                           </div>
-                          {errors.insuranceYearly && <p className="text-xs text-rose-500 mt-1">{errors.insuranceYearly}</p>}
                         </div>
                         <div>
                           <InputLabel label="Mortgage (€)" tooltip="Monthly mortgage repayment" />

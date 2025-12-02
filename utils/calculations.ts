@@ -55,6 +55,42 @@ export const calculateLPT = (marketValue: number): number => {
   return 0;
 };
 
+export const calculateInsurance = (price: number, propertyType: string, sqMeters: number, address: string): number => {
+  // Standard Landlord Insurance estimation for Ireland
+  // Note: Apartments often include building insurance in management fees.
+  
+  if (!price && !sqMeters) return 0;
+
+  const type = propertyType?.toLowerCase() || '';
+  const isApartment = type.includes('apartment') || type.includes('studio') || type.includes('duplex');
+  
+  // Apartments: Structure usually covered by Mgmt Fee. Landlord needs Contents + Liability.
+  if (isApartment) {
+      // Base estimate for landlord contents/liability
+      let premium = 300; 
+      if (price > 500000) premium += 100;
+      return premium;
+  }
+
+  // Houses: Structure + Contents + Liability
+  // Estimate Rebuild Cost: If sqMeters known, use ~€2,000/sqm. If not, use 70% of market value (deducting site value).
+  let rebuildCost = 0;
+  if (sqMeters > 0) {
+      rebuildCost = sqMeters * 2000;
+  } else {
+      rebuildCost = price * 0.75;
+  }
+
+  // Rate approx 0.1% - 0.12% of rebuild cost
+  let premium = rebuildCost * 0.0012;
+
+  // Minimums and Rounding
+  if (premium < 350) premium = 350;
+  if (premium > 2500) premium = 2500; // Cap for typical residential
+  
+  return Math.round(premium);
+};
+
 export const calculateROI = (input: PropertyInput): AnalysisResult => {
   // Safe cast all inputs to numbers to handle empty strings ('') from UI
   const price = Number(input.price) || 0;
