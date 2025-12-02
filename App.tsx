@@ -185,7 +185,7 @@ const App: React.FC = () => {
       if (formData.propertyTaxYearly !== '') {
          setFormData(prev => ({
           ...prev,
-          propertyTaxYearly: 0
+          propertyTaxYearly: ''
         }));
       }
     }
@@ -204,7 +204,7 @@ const App: React.FC = () => {
         setFormData(prev => ({ ...prev, insuranceYearly: updatedInsurance }));
       }
     } else if (formData.insuranceYearly !== '') {
-        setFormData(prev => ({ ...prev, insuranceYearly: 0 }));
+        setFormData(prev => ({ ...prev, insuranceYearly: '' }));
     }
   }, [formData.price, formData.propertyType, formData.sqMeters, formData.address]);
 
@@ -655,7 +655,7 @@ const App: React.FC = () => {
                           </div>
                         </div>
                         <div>
-                          <InputLabel label="Insurance (€)" tooltip="Estimated annual property insurance cost" />
+                          <InputLabel label="Insurance (€)" tooltip="Annual property insurance cost" />
                           <div className="relative">
                             <Euro className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                             <input

@@ -1,4 +1,4 @@
-import { PropertyInput, AnalysisResult } from '../types';
+import { PropertyInput, AnalysisResult, SensitivityItem } from '../types';
 
 export const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('en-IE', {
@@ -10,60 +10,68 @@ export const formatCurrency = (value: number): string => {
 };
 
 export const calculateLPT = (marketValue: number | string): number => {
-  // -------- 1. CLEAN & PARSE INPUT --------
+  // 1. Parsing the property value
   let numericValue = 0;
-
-  if (typeof marketValue === "number") {
+  
+  if (typeof marketValue === 'number') {
     numericValue = marketValue;
-  } else if (typeof marketValue === "string") {
-    const clean = marketValue.replace(/[^0-9]/g, ""); // strip commas, € symbols, spaces
+  } else if (typeof marketValue === 'string') {
+    // Remove all non-numeric characters (digits only)
+    const clean = marketValue.replace(/[^0-9]/g, '');
+    // Convert to number
     numericValue = parseInt(clean, 10);
   }
 
-  // Invalid input protection
-  if (!numericValue || isNaN(numericValue) || numericValue <= 0) return 0;
+  // Edge Case: Empty or invalid input
+  if (isNaN(numericValue) || numericValue <= 0) {
+    return 0;
+  }
 
-  // Safety: prevent insane values (e.g., user types "35000000000")
-  if (numericValue > 100000000) return 0; // €100M upper sanity cap
+  // 2. Apply Official 2026+ LPT Rules
+  let calculatedLPT = 0;
 
-  // -------- 2. FIXED BANDS (2026 ONWARD) --------
-  const LPT_BANDS = [
-    { limit: 240000, charge: 95 },
-    { limit: 262500, charge: 95 },
-    { limit: 315000, charge: 235 },
-    { limit: 350000, charge: 333 },
-    { limit: 420000, charge: 333 },
-    { limit: 450000, charge: 428 },
-    { limit: 525000, charge: 428 },
-    { limit: 600000, charge: 523 },
-    { limit: 700000, charge: 618 },
-    { limit: 800000, charge: 713 },
-    { limit: 950000, charge: 808 },
-    { limit: 1050000, charge: 903 },
-    { limit: 1200000, charge: 1094 },
-    { limit: 1500000, charge: 1797 },
-    { limit: 1750000, charge: 2502 },
-    { limit: 2100000, charge: 3110 },
-  ];
-
-  if (numericValue <= 2100000) {
-    for (const band of LPT_BANDS) {
-      if (numericValue <= band.limit) return band.charge;
+  if (numericValue > 2100000) {
+    // Graduated rates for properties above €2.1m
+    
+    // Base LPT at €2.1m threshold is €3,147 
+    const base = 3147;
+    
+    if (numericValue <= 2500000) {
+      // 0.2% on the portion between €2.1m and €2.5m
+      const excess = numericValue - 2100000;
+      calculatedLPT = Math.round(base + (excess * 0.002));
+    } else {
+      // 0.2% on the full €400k band (2.1-2.5m) = €800
+      // 0.24% on the portion above €2.5m
+      const excess = numericValue - 2500000;
+      calculatedLPT = Math.round(base + 800 + (excess * 0.0024));
     }
+
+  } else {
+    // Fixed Band Charges for properties <= €2.1m
+    if (numericValue <= 200000) calculatedLPT = 90;
+    else if (numericValue <= 262500) calculatedLPT = 95;
+    else if (numericValue <= 350000) calculatedLPT = 206;
+    else if (numericValue <= 437500) calculatedLPT = 317;
+    else if (numericValue <= 525000) calculatedLPT = 428;
+    else if (numericValue <= 612500) calculatedLPT = 504;
+    else if (numericValue <= 700000) calculatedLPT = 580;
+    else if (numericValue <= 787500) calculatedLPT = 656;
+    else if (numericValue <= 875000) calculatedLPT = 732;
+    else if (numericValue <= 962500) calculatedLPT = 808;
+    else if (numericValue <= 1050000) calculatedLPT = 903;
+    else if (numericValue <= 1137500) calculatedLPT = 998;
+    else if (numericValue <= 1225000) calculatedLPT = 1094;
+    else if (numericValue <= 1312500) calculatedLPT = 1269;
+    else if (numericValue <= 1400000) calculatedLPT = 1444;
+    else if (numericValue <= 1487500) calculatedLPT = 1619;
+    else if (numericValue <= 1575000) calculatedLPT = 1797;
+    else if (numericValue <= 1662500) calculatedLPT = 2015;
+    else if (numericValue <= 1750000) calculatedLPT = 2233;
+    else calculatedLPT = 3110; // 1.75m to 2.1m
   }
 
-  // -------- 3. GRADUATED RATES (> €2.1m) --------
-  const baseAtThreshold = 3147; // Official amount at €2.1m
-
-  // Between €2.1m and €2.5m → 0.2%
-  if (numericValue <= 2500000) {
-    const excess = numericValue - 2100000;
-    return Math.round(baseAtThreshold + excess * 0.002);
-  }
-
-  // Above €2.5m → 0.2% for first 400k + 0.24% above 2.5m
-  const excess = numericValue - 2500000;
-  return Math.round(baseAtThreshold + 800 + excess * 0.0024);
+  return calculatedLPT;
 };
 
 export const calculateInsurance = (price: number, propertyType: string, sqMeters: number, address: string): number => {
@@ -77,7 +85,9 @@ export const calculateInsurance = (price: number, propertyType: string, sqMeters
   } 
   // Fallback: If no sqMeters, estimate rebuild cost from market price (approx 75% for structure)
   // This ensures the field isn't empty if the user hasn't entered area yet.
-  else {
+  else if (price > 0) {
+    rebuildCost = price * 0.75;
+  } else {
     return 0;
   }
 
@@ -150,4 +160,57 @@ export const calculateROI = (input: PropertyInput): AnalysisResult => {
     monthlyExpenses,
     capRate
   };
+};
+
+export const calculateSensitivity = (input: PropertyInput): SensitivityItem[] => {
+  const baseResult = calculateROI(input);
+  const baseNetYield = baseResult.netYield;
+
+  const results: SensitivityItem[] = [];
+
+  // Helper to clone input safely
+  const clone = (data: PropertyInput) => ({ ...data });
+
+  // 1. Rent (+/- 10%)
+  const rentLow = clone(input);
+  rentLow.monthlyRent = (Number(input.monthlyRent) || 0) * 0.9;
+  const rentHigh = clone(input);
+  rentHigh.monthlyRent = (Number(input.monthlyRent) || 0) * 1.1;
+  results.push({
+    variable: 'Rent ±10%',
+    base: baseNetYield,
+    yieldLowInput: calculateROI(rentLow).netYield,
+    yieldHighInput: calculateROI(rentHigh).netYield
+  });
+
+  // 2. Vacancy (+/- 5%)
+  // Simulating vacancy by adjusting effective gross rent.
+  // "Higher Vacancy" (Low Input Scenario basically) means Less Rent.
+  // +5% Vacancy -> -5% Rent.
+  // -5% Vacancy -> +5% Rent (Outperformance/Better than base).
+  const vacancyHigh = clone(input); // More vacancy = Bad
+  vacancyHigh.monthlyRent = (Number(input.monthlyRent) || 0) * 0.92;
+  const vacancyLow = clone(input); // Less vacancy = Good
+  vacancyLow.monthlyRent = (Number(input.monthlyRent) || 0) * 1;
+  results.push({
+    variable: 'Vacancy 8%',
+    base: baseNetYield,
+    // "yieldLowInput" here conceptually maps to "Worse Condition" which is High Vacancy
+    yieldLowInput: calculateROI(vacancyHigh).netYield, 
+    yieldHighInput: calculateROI(vacancyLow).netYield
+  });
+
+  // 3. Management Fee (+/- 2%)
+  const mgmtLow = clone(input);
+  mgmtLow.managementFeePercent = Math.max(0, (Number(input.managementFeePercent) || 0) - 2);
+  const mgmtHigh = clone(input);
+  mgmtHigh.managementFeePercent = (Number(input.managementFeePercent) || 0) + 2;
+  results.push({
+    variable: 'Mgmt Fee ±2%',
+    base: baseNetYield,
+    yieldLowInput: calculateROI(mgmtHigh).netYield, // Higher fee = Lower Yield (Worse)
+    yieldHighInput: calculateROI(mgmtLow).netYield  // Lower fee = Higher Yield (Better)
+  });
+
+  return results;
 };

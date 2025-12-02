@@ -25,6 +25,13 @@ export interface AnalysisResult {
   capRate: number;
 }
 
+export interface SensitivityItem {
+  variable: string;
+  base: number;
+  yieldLowInput: number; // Net Yield when the input variable is decreased
+  yieldHighInput: number; // Net Yield when the input variable is increased
+}
+
 export interface MarketInsight {
   summary: string;
   averageRentEstimate?: string;
