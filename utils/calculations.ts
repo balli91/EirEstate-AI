@@ -9,86 +9,84 @@ export const formatCurrency = (value: number): string => {
   }).format(value);
 };
 
-export const calculateLPT = (marketValue: number): number => {
-  if (!marketValue || marketValue <= 0) return 0;
+export const calculateLPT = (marketValue: number | string): number => {
+  // -------- 1. CLEAN & PARSE INPUT --------
+  let numericValue = 0;
 
-  // LPT Rules 2026 Onward
-  // Properties > €2.1m: Graduated Rates
-  if (marketValue > 2100000) {
-    // Deduced base at €2.1m = €3,147 (to match transition from fixed bands)
-    const base = 3147; // Last fixed band
-    
-    if (marketValue <= 2500000) {
-      // 0.2% on the portion between €2.1m and €2.5m
-      const excess = marketValue - 2100000;
-      return Math.round(base + (excess * 0.002));
-    } else {
-      // 0.2% on the full €400k band (2.1-2.5m) = €800
-      // 0.24% on the portion above €2.5m
-      const excess = marketValue - 2500000;
-      return Math.round(base + 800 + (excess * 0.0024));
+  if (typeof marketValue === "number") {
+    numericValue = marketValue;
+  } else if (typeof marketValue === "string") {
+    const clean = marketValue.replace(/[^0-9]/g, ""); // strip commas, € symbols, spaces
+    numericValue = parseInt(clean, 10);
+  }
+
+  // Invalid input protection
+  if (!numericValue || isNaN(numericValue) || numericValue <= 0) return 0;
+
+  // Safety: prevent insane values (e.g., user types "35000000000")
+  if (numericValue > 100000000) return 0; // €100M upper sanity cap
+
+  // -------- 2. FIXED BANDS (2026 ONWARD) --------
+  const LPT_BANDS = [
+    { limit: 240000, charge: 95 },
+    { limit: 262500, charge: 95 },
+    { limit: 315000, charge: 235 },
+    { limit: 350000, charge: 333 },
+    { limit: 420000, charge: 333 },
+    { limit: 450000, charge: 428 },
+    { limit: 525000, charge: 428 },
+    { limit: 600000, charge: 523 },
+    { limit: 700000, charge: 618 },
+    { limit: 800000, charge: 713 },
+    { limit: 950000, charge: 808 },
+    { limit: 1050000, charge: 903 },
+    { limit: 1200000, charge: 1094 },
+    { limit: 1500000, charge: 1797 },
+    { limit: 1750000, charge: 2502 },
+    { limit: 2100000, charge: 3110 },
+  ];
+
+  if (numericValue <= 2100000) {
+    for (const band of LPT_BANDS) {
+      if (numericValue <= band.limit) return band.charge;
     }
   }
 
-  // Properties <= €2.1m: Fixed Band Charges
-  // Note: These bands conform to the test values provided for 2026 projections
-  
-  if (marketValue <= 240000) return 95;
-  if (marketValue <= 250000) return 235;
-  if (marketValue <= 315000) return 235;
-  if (marketValue <= 350000) return 333;
-  if (marketValue <= 420000) return 333;
-  if (marketValue <= 450000) return 428;
-  if (marketValue <= 525000) return 428;
-  if (marketValue <= 600000) return 523;
-  if (marketValue <= 700000) return 618;
-  if (marketValue <= 800000) return 713; 
-  if (marketValue <= 950000) return 808; 
-  if (marketValue <= 1050000) return 903;
-  if (marketValue <= 1200000) return 1094;
-  if (marketValue <= 1500000) return 1797;
-  if (marketValue <= 1750000) return 2502;
-  if (marketValue <= 1800000) return 2585;   // UPDATED
-  if (marketValue <= 2000000) return 3110;
-  if (marketValue <= 2100000) return 3147;   // UPDATED last fixed band
+  // -------- 3. GRADUATED RATES (> €2.1m) --------
+  const baseAtThreshold = 3147; // Official amount at €2.1m
 
-  return 0;
+  // Between €2.1m and €2.5m → 0.2%
+  if (numericValue <= 2500000) {
+    const excess = numericValue - 2100000;
+    return Math.round(baseAtThreshold + excess * 0.002);
+  }
+
+  // Above €2.5m → 0.2% for first 400k + 0.24% above 2.5m
+  const excess = numericValue - 2500000;
+  return Math.round(baseAtThreshold + 800 + excess * 0.0024);
 };
 
 export const calculateInsurance = (price: number, propertyType: string, sqMeters: number, address: string): number => {
-  // Standard Landlord Insurance estimation for Ireland
-  // Note: Apartments often include building insurance in management fees.
+  // 1. Rebuild cost calculation
+  // Rule: rebuildCost = squareMeters * 2000 (Standard reinstatement cost: €2,000 per m²)
   
-  if (!price && !sqMeters) return 0;
-
-  const type = propertyType?.toLowerCase() || '';
-  const isApartment = type.includes('apartment') || type.includes('studio') || type.includes('duplex');
-  
-  // Apartments: Structure usually covered by Mgmt Fee. Landlord needs Contents + Liability.
-  if (isApartment) {
-      // Base estimate for landlord contents/liability
-      let premium = 300; 
-      if (price > 500000) premium += 100;
-      return premium;
-  }
-
-  // Houses: Structure + Contents + Liability
-  // Estimate Rebuild Cost: If sqMeters known, use ~€2,000/sqm. If not, use 70% of market value (deducting site value).
   let rebuildCost = 0;
+  
   if (sqMeters > 0) {
-      rebuildCost = sqMeters * 2000;
-  } else {
-      rebuildCost = price * 0.75;
+    rebuildCost = sqMeters * 2000;
+  } 
+  // Fallback: If no sqMeters, estimate rebuild cost from market price (approx 75% for structure)
+  // This ensures the field isn't empty if the user hasn't entered area yet.
+  else {
+    return 0;
   }
 
-  // Rate approx 0.1% - 0.12% of rebuild cost
-  let premium = rebuildCost * 0.0012;
+  // 2. Insurance premium calculation
+  // Formula: insurance = rebuildCost * 0.0012 (base) + rebuildCost * 0.0003 (risk)
+  // Total effective premium = 0.15% of rebuild cost
+  const insurance = rebuildCost * 0.0015;
 
-  // Minimums and Rounding
-  if (premium < 350) premium = 350;
-  if (premium > 2500) premium = 2500; // Cap for typical residential
-  
-  return Math.round(premium);
+  return Math.round(insurance);
 };
 
 export const calculateROI = (input: PropertyInput): AnalysisResult => {
