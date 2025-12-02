@@ -231,7 +231,7 @@ const Charts: React.FC<ChartsProps> = ({ analysis, input }) => {
           <h3 className="text-lg font-semibold text-slate-800 mb-4">Monthly Breakdown</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 20 }}>
+              <BarChart data={data} layout="vertical" margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis 
                   type="number" 
@@ -258,7 +258,7 @@ const Charts: React.FC<ChartsProps> = ({ analysis, input }) => {
           <h3 className="text-lg font-semibold text-slate-800 mb-4">5-Year Cumulative Cashflow</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={projectionData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+              <BarChart data={projectionData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="year" tick={{fontSize: 12, fill: '#64748b'}} axisLine={false} tickLine={false} />
                 <YAxis tick={{fontSize: 12, fill: '#64748b'}} axisLine={false} tickLine={false} tickFormatter={(val) => `€${(val/1000).toFixed(0)}k`} />
@@ -350,7 +350,7 @@ const Charts: React.FC<ChartsProps> = ({ analysis, input }) => {
                         <BarChart 
                             layout="vertical" 
                             data={sensitivityData} 
-                            margin={{ top: 10, right: 20, left: 20, bottom: 10 }}
+                            margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
                         >
                             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                             <XAxis 
@@ -362,15 +362,15 @@ const Charts: React.FC<ChartsProps> = ({ analysis, input }) => {
                             <YAxis 
                                 dataKey="variable" 
                                 type="category" 
-                                width={120} 
+                                width={100} 
                                 tick={{fontSize: 11, fill: '#64748b', fontWeight: 500}} 
                             />
                             <Tooltip content={<SensitivityTooltip />} cursor={{fill: 'transparent'}} />
                             <ReferenceLine x={sensitivityData[0]?.base} stroke="#94a3b8" strokeDasharray="3 3" />
                             {/* Negative Impact Range (Red) */}
-                            <Bar dataKey="badRange" fill="#f87171" radius={[4, 4, 4, 4]} barSize={20} />
+                            <Bar dataKey="badRange" fill="#E57373" radius={[4, 4, 4, 4]} barSize={20} />
                             {/* Positive Impact Range (Green) */}
-                            <Bar dataKey="goodRange" fill="#34d399" radius={[4, 4, 4, 4]} barSize={20} />
+                            <Bar dataKey="goodRange" fill="#81C784" radius={[4, 4, 4, 4]} barSize={20} />
                         </BarChart>
                     </ResponsiveContainer>
                 )}
