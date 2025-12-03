@@ -99,6 +99,21 @@ export const calculateInsurance = (price: number, propertyType: string, sqMeters
   return Math.round(insurance);
 };
 
+export const calculateMortgagePayment = (principal: number, annualRatePercent: number, termYears: number): number => {
+  if (principal <= 0 || termYears <= 0) return 0;
+  if (annualRatePercent <= 0) return Math.round(principal / (termYears * 12)); // No interest case
+
+  const monthlyRate = annualRatePercent / 100 / 12;
+  const numberOfPayments = termYears * 12;
+
+  // Formula: M = P [ i(1 + i)^n ] / [ (1 + i)^n – 1 ]
+  const numerator = monthlyRate * Math.pow(1 + monthlyRate, numberOfPayments);
+  const denominator = Math.pow(1 + monthlyRate, numberOfPayments) - 1;
+  const monthlyPayment = principal * (numerator / denominator);
+
+  return Math.round(monthlyPayment);
+};
+
 export const calculateROI = (input: PropertyInput): AnalysisResult => {
   // Safe cast all inputs to numbers to handle empty strings ('') from UI
   const price = Number(input.price) || 0;

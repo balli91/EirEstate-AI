@@ -5,6 +5,7 @@ import { parsePropertyDescription, analyzeMarket } from './services/gemini';
 import { DEFAULT_PROPERTY, PROPERTY_TYPES } from './constants';
 import MetricsCard from './components/MetricsCard';
 import Charts from './components/Charts';
+import MortgageCalculatorModal from './components/MortgageCalculatorModal';
 import {
   Calculator,
   Building,
@@ -133,6 +134,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'manual' | 'ai'>('manual');
   const [shareSuccess, setShareSuccess] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [isMortgageModalOpen, setIsMortgageModalOpen] = useState(false);
 
   // Hydrate from URL params on mount
   useEffect(() => {
@@ -382,6 +384,11 @@ const App: React.FC = () => {
           console.error("Clipboard write failed", clipboardErr);
        }
     }
+  };
+
+  // Handler for applying mortgage calculation
+  const handleMortgageApply = (monthlyPayment: number) => {
+    setFormData(prev => ({ ...prev, mortgageMonthly: monthlyPayment }));
   };
 
   return (
@@ -709,20 +716,39 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* AI Insight Trigger - Pastel Dark Green */}
-            <div className="bg-[#335c4a] rounded-xl p-6 text-white shadow-md relative overflow-hidden">
+            {/* Mortgage Calculator Trigger (Swapped position & styled as dark green) */}
+            <div className="bg-[#335c4a] rounded-xl p-6 text-white shadow-md relative overflow-hidden mb-6 group transition-colors">
                <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-emerald-800 rounded-full opacity-50 blur-2xl pointer-events-none"></div>
                <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
-                 <Search className="w-5 h-5 text-emerald-300" />
-                 Market Intelligence
+                 <div className="bg-emerald-400/20 p-1.5 rounded-lg">
+                    <Calculator className="w-5 h-5 text-emerald-100" />
+                 </div>
+                 Mortgage Calculator
                </h3>
                <p className="text-emerald-100 text-sm mb-4">
+                 Calculate your monthly mortgage repayments based on loan amount, term, and interest rate.
+               </p>
+               <button
+                onClick={() => setIsMortgageModalOpen(true)}
+                className="w-full bg-white text-emerald-900 hover:bg-emerald-50 font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+               >
+                 Open Calculator
+               </button>
+            </div>
+
+            {/* AI Insight Trigger - (Swapped position & styled as white) */}
+            <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm relative overflow-hidden">
+               <h3 className="font-bold text-lg mb-2 flex items-center gap-2 text-slate-800">
+                 <Search className="w-5 h-5 text-emerald-600" />
+                 Market Intelligence
+               </h3>
+               <p className="text-slate-500 text-sm mb-4">
                  Use smart analysis to analyze rental demand and validate your pricing for this location.
                </p>
                <button
                 onClick={handleMarketAnalysis}
                 disabled={loadingState === LoadingState.ANALYZING}
-                className="w-full bg-white text-emerald-900 hover:bg-emerald-50 font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+                className="w-full bg-slate-50 text-slate-700 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 font-semibold py-2 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-70"
                >
                  {loadingState === LoadingState.ANALYZING ? (
                    <Loader2 className="w-4 h-4 animate-spin" />
@@ -731,6 +757,7 @@ const App: React.FC = () => {
                  )}
                </button>
             </div>
+
           </div>
 
           {/* RIGHT COLUMN: Results Dashboard */}
@@ -838,6 +865,14 @@ const App: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Mortgage Calculator Modal */}
+        <MortgageCalculatorModal 
+          isOpen={isMortgageModalOpen} 
+          onClose={() => setIsMortgageModalOpen(false)}
+          onApply={handleMortgageApply}
+          initialPrincipal={Number(formData.price) || 0}
+        />
       </main>
     </div>
   );
