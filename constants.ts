@@ -1,16 +1,16 @@
 export const DEFAULT_PROPERTY: any = {
   address: '',
-  price: 0,
-  monthlyRent: 0,
-  rehabCost: 0,
-  propertyTaxYearly: 0,
-  insuranceYearly: 0,
-  managementFeePercent: 0,
-  mortgageMonthly: 0,
+  price: '',
+  monthlyRent: '',
+  rehabCost: '',
+  propertyTaxYearly: '',
+  insuranceYearly: '',
+  managementFeePercent: '',
+  mortgageMonthly: '',
   description: '',
-  bedrooms: 0,
-  bathrooms: 0,
-  sqMeters: 0,
+  bedrooms: '',
+  bathrooms: '',
+  sqMeters: '',
   propertyType: 'House'
 };
 

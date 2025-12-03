@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calculator, Euro, Calendar, Percent, Check } from 'lucide-react';
+import { X, Calculator, Euro, Calendar, Percent, Check, Info } from 'lucide-react';
 import { calculateMortgagePayment, formatCurrency } from '../utils/calculations';
 
 interface MortgageCalculatorModalProps {
@@ -10,27 +10,44 @@ interface MortgageCalculatorModalProps {
 }
 
 const MortgageCalculatorModal: React.FC<MortgageCalculatorModalProps> = ({ isOpen, onClose, onApply, initialPrincipal }) => {
-  const [principal, setPrincipal] = useState(initialPrincipal || 0);
-  const [rate, setRate] = useState(4.0); // Default 4%
-  const [term, setTerm] = useState(25); // Default 25 years
+  // Initialize with empty string to show placeholder "0"
+  const [principal, setPrincipal] = useState<number | ''>('');
+  const [rate, setRate] = useState<number | ''>(''); 
+  const [term, setTerm] = useState<number | ''>(''); 
   const [monthlyPayment, setMonthlyPayment] = useState(0);
 
-  // Update principal when initialPrincipal prop changes
+  // When opening, reset fields to empty so placeholder shows
   useEffect(() => {
-    if (isOpen && initialPrincipal > 0) {
-      // Default to 80% LTV if using purchase price
-      setPrincipal(Math.round(initialPrincipal * 0.8));
+    if (isOpen) {
+      setPrincipal('');
+      setRate('');
+      setTerm('');
     }
-  }, [isOpen, initialPrincipal]);
+  }, [isOpen]);
 
-  // Recalculate whenever inputs change
+  // Recalculate whenever inputs change. Treat empty string as 0 for calculation.
   useEffect(() => {
-    setMonthlyPayment(calculateMortgagePayment(principal, rate, term));
+    const p = principal === '' ? 0 : principal;
+    const r = rate === '' ? 0 : rate;
+    const t = term === '' ? 0 : term;
+    setMonthlyPayment(calculateMortgagePayment(p, r, t));
   }, [principal, rate, term]);
 
   const handleApply = () => {
     onApply(monthlyPayment);
     onClose();
+  };
+
+  const handleInputChange = (setter: React.Dispatch<React.SetStateAction<number | ''>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === '') {
+      setter('');
+    } else {
+      const num = parseFloat(val);
+      if (!isNaN(num)) {
+        setter(num);
+      }
+    }
   };
 
   if (!isOpen) return null;
@@ -58,7 +75,13 @@ const MortgageCalculatorModal: React.FC<MortgageCalculatorModalProps> = ({ isOpe
         <div className="p-6 space-y-6">
           
           {/* Result Display */}
-          <div className="bg-emerald-50 rounded-xl p-6 text-center border border-emerald-100">
+          <div className="bg-emerald-50 rounded-xl p-6 text-center border border-emerald-100 relative">
+            <div className="absolute top-3 right-3 group">
+                <Info className="w-4 h-4 text-emerald-400 cursor-help" />
+                <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-48 p-2 bg-slate-800 text-white text-xs rounded shadow-lg z-10">
+                    This is an estimate based on the inputs provided. Actual repayments may vary.
+                </div>
+            </div>
             <p className="text-sm font-medium text-emerald-600 uppercase mb-1">Estimated Monthly Repayment</p>
             <p className="text-4xl font-bold text-emerald-800">{formatCurrency(monthlyPayment)}</p>
           </div>
@@ -68,15 +91,15 @@ const MortgageCalculatorModal: React.FC<MortgageCalculatorModalProps> = ({ isOpe
             
             {/* Principal */}
             <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase truncate pr-1 mb-1">Loan Amount</label>
+              <label className="block text-xs font-semibold text-slate-500 uppercase truncate pr-1 mb-1">Loan Amount (€)</label>
               <div className="relative">
                 <Euro className="absolute left-3 top-2.5 h-4 w-4 text-emerald-600" />
                 <input
                   type="number"
-                  value={principal || ''}
-                  onChange={(e) => setPrincipal(parseFloat(e.target.value) || 0)}
+                  value={principal}
+                  onChange={handleInputChange(setPrincipal)}
                   className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  placeholder="e.g. 250000"
+                  placeholder="0"
                 />
               </div>
             </div>
@@ -91,8 +114,9 @@ const MortgageCalculatorModal: React.FC<MortgageCalculatorModalProps> = ({ isOpe
                     type="number"
                     step="0.1"
                     value={rate}
-                    onChange={(e) => setRate(parseFloat(e.target.value) || 0)}
+                    onChange={handleInputChange(setRate)}
                     className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    placeholder="0"
                   />
                 </div>
               </div>
@@ -105,8 +129,9 @@ const MortgageCalculatorModal: React.FC<MortgageCalculatorModalProps> = ({ isOpe
                   <input
                     type="number"
                     value={term}
-                    onChange={(e) => setTerm(parseFloat(e.target.value) || 0)}
+                    onChange={handleInputChange(setTerm)}
                     className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    placeholder="0"
                   />
                 </div>
               </div>

@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { PropertyInput, MarketInsight } from "../types";
 
@@ -36,7 +37,7 @@ export const parsePropertyDescription = async (input: string): Promise<Partial<P
 
         **Daft.ie Extraction Rules:**
         - Address: Extract the full property address.
-        - Price: Locate the div with attribute 'data-testid="price"'. Inside this div, find the <h2> element. Extract the exact text content (e.g., "€895,000"). You MUST remove the '€' symbol and ALL commas. Treat commas strictly as thousands separators (not decimals). Example: "€895,000" becomes 895000. Do NOT round, truncate, or return zero. If the element is missing or POA, return null.
+        - Price: Locate the div with attribute 'data-testid="price"'. Inside this div, find the <h2> element. Extract the exact text content (e.g. "€895,000"). You MUST remove the '€' symbol and ALL commas. Treat commas strictly as thousands separators (not decimals). Example: "€895,000" becomes 895000. Do NOT round, truncate, or return zero. If the element is missing or POA, return null.
         
         **Property Specs (Critical):**
         - Look for the main property info bar which typically contains Beds, Baths, Area, and Type in that order.
@@ -160,17 +161,34 @@ export const analyzeMarket = async (location: string, propertyType: string, pric
       model: "gemini-2.5-flash",
       contents: `Analyze the residential rental market in ${location}, Ireland for a ${propertyType} around €${price}.
       
-      Perform the following research:
-      1. Find current average monthly rent for this specific property type in this area.
-      2. Identify key pros and cons for an investor.
-      3. Write a brief investment outlook summary.
+      Perform the following research and Provide ESTIMATES based on typical data for this area:
+      1. Current estimated monthly rent range (low to high).
+      2. Rental price trend over the last 3 years (estimate average rent for previous 3 years).
+      3. Market Demand level (Low, Medium, High).
+      4. Walkability Score (0-100).
+      5. Safety/Crime Index (0-100, where 100 is very safe).
+      6. Commute/Transit Score (0-100).
+      7. Key pros and cons for investors.
+      8. Brief investment outlook summary.
 
-      Format your response as a valid JSON object string (do not use markdown formatting around it if possible, just the JSON) with the following keys:
+      Format your response as a valid JSON object string (do not use markdown formatting around it if possible, just the JSON).
+      
+      Expected JSON Structure:
       {
-        "averageRentEstimate": "string (e.g. '€2,100 - €2,400')",
-        "pros": ["string", "string", "string"],
-        "cons": ["string", "string", "string"],
-        "summary": "string (2-3 sentences max)"
+        "rentLow": number,
+        "rentHigh": number,
+        "rentHistory": [
+           {"year": "2022", "price": number},
+           {"year": "2023", "price": number},
+           {"year": "2024", "price": number}
+        ],
+        "demand": "Low" | "Medium" | "High",
+        "walkabilityScore": number,
+        "safetyScore": number,
+        "transitScore": number,
+        "pros": ["string", "string"],
+        "cons": ["string", "string"],
+        "summary": "string"
       }`,
       config: {
         tools: [{ googleSearch: {} }]
@@ -190,12 +208,12 @@ export const analyzeMarket = async (location: string, propertyType: string, pric
             const cleanJson = jsonStr.substring(firstBrace, lastBrace + 1);
             parsedData = JSON.parse(cleanJson);
         } else {
-            // Fallback if no JSON found, treat whole text as summary
-             parsedData = { summary: text, pros: [], cons: [] };
+            // Fallback if no JSON found
+             parsedData = { summary: text };
         }
     } catch (e) {
         console.log("Failed to parse market JSON", e);
-        parsedData = { summary: text, pros: [], cons: [] };
+        parsedData = { summary: text };
     }
 
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
@@ -204,9 +222,15 @@ export const analyzeMarket = async (location: string, propertyType: string, pric
       .map((c: any) => c.web?.uri)
       .filter((u: any): u is string => typeof u === "string");
 
-    const result = {
+    const result: MarketInsight = {
       summary: parsedData.summary || "No summary available.",
-      averageRentEstimate: parsedData.averageRentEstimate,
+      rentRangeLow: parsedData.rentLow || 0,
+      rentRangeHigh: parsedData.rentHigh || 0,
+      rentHistory: parsedData.rentHistory || [],
+      demandLevel: parsedData.demand || 'Medium',
+      walkabilityScore: parsedData.walkabilityScore || 50,
+      safetyScore: parsedData.safetyScore || 50,
+      transitScore: parsedData.transitScore || 50,
       pros: parsedData.pros || [],
       cons: parsedData.cons || [],
       groundingUrls: [...new Set(urls)], // Dedupe
@@ -220,6 +244,13 @@ export const analyzeMarket = async (location: string, propertyType: string, pric
     console.error("Analysis Error:", error);
     return {
       summary: "Could not analyze market data at this time.",
+      rentRangeLow: 0,
+      rentRangeHigh: 0,
+      rentHistory: [],
+      demandLevel: 'Medium',
+      walkabilityScore: 0,
+      safetyScore: 0,
+      transitScore: 0,
       groundingUrls: [],
       pros: [],
       cons: []

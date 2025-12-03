@@ -1,3 +1,4 @@
+
 export interface PropertyInput {
   address: string;
   price: number | '';
@@ -34,7 +35,13 @@ export interface SensitivityItem {
 
 export interface MarketInsight {
   summary: string;
-  averageRentEstimate?: string;
+  rentRangeLow: number;
+  rentRangeHigh: number;
+  rentHistory: { year: string; price: number }[];
+  demandLevel: 'Low' | 'Medium' | 'High';
+  walkabilityScore: number;
+  safetyScore: number;
+  transitScore: number;
   pros: string[];
   cons: string[];
   groundingUrls: string[];

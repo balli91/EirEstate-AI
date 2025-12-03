@@ -77,26 +77,17 @@ export const calculateLPT = (marketValue: number | string): number => {
 export const calculateInsurance = (price: number, propertyType: string, sqMeters: number, address: string): number => {
   // 1. Rebuild cost calculation
   // Rule: rebuildCost = squareMeters * 2000 (Standard reinstatement cost: €2,000 per m²)
-  
-  let rebuildCost = 0;
+  // Note: We intentionally do not use price as a fallback anymore to ensure independence of fields.
   
   if (sqMeters > 0) {
-    rebuildCost = sqMeters * 2000;
+    const rebuildCost = sqMeters * 2000;
+    // 2. Insurance premium calculation
+    // Formula: insurance = rebuildCost * 0.0012 (base) + rebuildCost * 0.0003 (risk)
+    // Total effective premium = 0.15% of rebuild cost
+    return Math.round(rebuildCost * 0.0015);
   } 
-  // Fallback: If no sqMeters, estimate rebuild cost from market price (approx 75% for structure)
-  // This ensures the field isn't empty if the user hasn't entered area yet.
-  else if (price > 0) {
-    rebuildCost = price * 0.75;
-  } else {
-    return 0;
-  }
-
-  // 2. Insurance premium calculation
-  // Formula: insurance = rebuildCost * 0.0012 (base) + rebuildCost * 0.0003 (risk)
-  // Total effective premium = 0.15% of rebuild cost
-  const insurance = rebuildCost * 0.0015;
-
-  return Math.round(insurance);
+  
+  return 0;
 };
 
 export const calculateMortgagePayment = (principal: number, annualRatePercent: number, termYears: number): number => {

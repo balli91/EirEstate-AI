@@ -214,6 +214,8 @@ const Charts: React.FC<ChartsProps> = ({ analysis, input }) => {
       { name: 'Mgmt Fee', value: monthlyMgmt, color: '#FFCC80' },
   ].filter(item => item.value > 0);
 
+  const totalMonthlyExpenses = expenseData.reduce((sum, item) => sum + item.value, 0);
+
   const formatAxisTick = (value: number) => {
     if (value === 0) return '€0';
     if (Math.abs(value) >= 1000) return `€${(value / 1000).toFixed(0)}k`;
@@ -244,7 +246,13 @@ const Charts: React.FC<ChartsProps> = ({ analysis, input }) => {
                   cursor={{fill: 'transparent'}}
                   content={<MonthlyBreakdownTooltip input={input} />}
                 />
-                <Bar dataKey="amount" radius={[0, 4, 4, 0]} barSize={32}>
+                <Bar 
+                  dataKey="amount" 
+                  radius={[0, 4, 4, 0]} 
+                  barSize={32}
+                  animationDuration={1000}
+                  animationEasing="ease-out"
+                >
                   {data.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -269,6 +277,8 @@ const Charts: React.FC<ChartsProps> = ({ analysis, input }) => {
                   barSize={40} 
                   onClick={handleBarClick}
                   className="cursor-pointer"
+                  animationDuration={1000}
+                  animationEasing="ease-out"
                 >
                     {projectionData.map((entry, index) => (
                         <Cell 
@@ -299,6 +309,8 @@ const Charts: React.FC<ChartsProps> = ({ analysis, input }) => {
                                 outerRadius={100}
                                 paddingAngle={2}
                                 dataKey="value"
+                                animationDuration={1000}
+                                animationEasing="ease-out"
                                   >
                                   {expenseData.map((entry, index) => (
                                       <Cell key={`cell-${index}`} fill={entry.color} />
@@ -307,6 +319,10 @@ const Charts: React.FC<ChartsProps> = ({ analysis, input }) => {
 
                             <Tooltip content={<ExpenseTooltip />} />
                             <Legend content={<TwoByTwoLegend />} />
+                            <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle">
+                                <tspan x="50%" dy="-10" fontSize="13" fill="#64748b" fontWeight="500">Monthly</tspan>
+                                <tspan x="50%" dy="24" fontSize="16" fill="#1e293b" fontWeight="700">{formatCurrency(totalMonthlyExpenses)}</tspan>
+                            </text>
                         </PieChart>
                     </ResponsiveContainer>
                 ) : (
@@ -368,9 +384,23 @@ const Charts: React.FC<ChartsProps> = ({ analysis, input }) => {
                             <Tooltip content={<SensitivityTooltip />} cursor={{fill: 'transparent'}} />
                             <ReferenceLine x={sensitivityData[0]?.base} stroke="#94a3b8" strokeDasharray="3 3" />
                             {/* Negative Impact Range (Red) */}
-                            <Bar dataKey="badRange" fill="#E57373" radius={[4, 4, 4, 4]} barSize={20} />
+                            <Bar 
+                                dataKey="badRange" 
+                                fill="#E57373" 
+                                radius={[4, 4, 4, 4]} 
+                                barSize={20} 
+                                animationDuration={1000} 
+                                animationEasing="ease-out" 
+                            />
                             {/* Positive Impact Range (Green) */}
-                            <Bar dataKey="goodRange" fill="#81C784" radius={[4, 4, 4, 4]} barSize={20} />
+                            <Bar 
+                                dataKey="goodRange" 
+                                fill="#81C784" 
+                                radius={[4, 4, 4, 4]} 
+                                barSize={20} 
+                                animationDuration={1000} 
+                                animationEasing="ease-out" 
+                            />
                         </BarChart>
                     </ResponsiveContainer>
                 )}

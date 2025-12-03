@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { PropertyInput, AnalysisResult, MarketInsight, LoadingState } from './types';
 import { calculateROI, formatCurrency, calculateLPT, calculateInsurance } from './utils/calculations';
@@ -6,6 +7,14 @@ import { DEFAULT_PROPERTY, PROPERTY_TYPES } from './constants';
 import MetricsCard from './components/MetricsCard';
 import Charts from './components/Charts';
 import MortgageCalculatorModal from './components/MortgageCalculatorModal';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
 import {
   Calculator,
   Building,
@@ -28,7 +37,11 @@ import {
   Bath,
   Home,
   Banknote,
-  Percent
+  Percent,
+  Footprints,
+  ShieldCheck,
+  TrainFront,
+  BarChart3
 } from 'lucide-react';
 
 // Helper component to render clean formatted text from AI output
@@ -79,47 +92,61 @@ const InputLabel = ({ label, tooltip }: { label: string; tooltip: string }) => (
   </div>
 );
 
+// Styled Progress Bar for Scores
+const ScoreBar = ({ label, score, icon: Icon, colorClass }: { label: string, score: number, icon: any, colorClass: string }) => (
+  <div className="flex flex-col gap-1">
+    <div className="flex justify-between items-center text-xs mb-0.5">
+      <div className="flex items-center gap-1.5 font-medium text-slate-700">
+        <Icon className={`w-3.5 h-3.5 ${colorClass}`} />
+        {label}
+      </div>
+      <span className="font-bold text-slate-900">{score}/100</span>
+    </div>
+    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+      <div 
+        className={`h-full rounded-full transition-all duration-1000 ${colorClass.replace('text-', 'bg-')}`} 
+        style={{ width: `${score}%` }}
+      />
+    </div>
+  </div>
+);
+
 // Skeleton loader for market insights
 const MarketInsightSkeleton = () => (
   <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-pulse">
-    <div className="flex items-center gap-2 mb-4">
-      <div className="w-5 h-5 bg-slate-200 rounded-full"></div>
+    <div className="flex items-center gap-2 mb-6">
+      <div className="w-6 h-6 bg-slate-200 rounded-full"></div>
       <div className="h-6 w-48 bg-slate-200 rounded"></div>
     </div>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      {/* Rent Skeleton - Indigo tint */}
-      <div className="bg-indigo-50/50 p-4 rounded-lg border border-indigo-50 h-32 flex flex-col justify-between">
-           <div className="h-3 w-24 bg-indigo-200 rounded"></div>
-           <div className="h-8 w-32 bg-indigo-200 rounded mt-2"></div>
-      </div>
-      {/* Pros Skeleton - Emerald tint */}
-      <div className="bg-emerald-50/50 p-4 rounded-lg border border-emerald-50 h-32 flex flex-col justify-between">
-           <div className="h-3 w-16 bg-emerald-200 rounded"></div>
-           <div className="space-y-2">
-             <div className="h-2 w-full bg-emerald-200 rounded"></div>
-             <div className="h-2 w-3/4 bg-emerald-200 rounded"></div>
-             <div className="h-2 w-5/6 bg-emerald-200 rounded"></div>
-           </div>
-      </div>
-      {/* Cons Skeleton - Rose tint */}
-      <div className="bg-rose-50/50 p-4 rounded-lg border border-rose-50 h-32 flex flex-col justify-between">
-           <div className="h-3 w-16 bg-rose-200 rounded"></div>
-           <div className="space-y-2">
-             <div className="h-2 w-full bg-rose-200 rounded"></div>
-             <div className="h-2 w-3/4 bg-rose-200 rounded"></div>
-             <div className="h-2 w-5/6 bg-rose-200 rounded"></div>
-           </div>
-      </div>
-    </div>
-    {/* Summary Skeleton */}
-    <div className="bg-slate-50 p-5 rounded-lg border border-slate-100 h-40">
-       <div className="h-3 w-32 bg-slate-200 rounded mb-4"></div>
-       <div className="space-y-2">
-          <div className="h-2 w-full bg-slate-200 rounded"></div>
-          <div className="h-2 w-full bg-slate-200 rounded"></div>
-          <div className="h-2 w-full bg-slate-200 rounded"></div>
-          <div className="h-2 w-2/3 bg-slate-200 rounded"></div>
+    
+    {/* Top Row: Rent & Chart */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+       <div className="space-y-3">
+          <div className="h-4 w-24 bg-slate-200 rounded"></div>
+          <div className="h-10 w-48 bg-slate-200 rounded"></div>
+          <div className="h-3 w-32 bg-slate-200 rounded"></div>
        </div>
+       <div className="h-32 bg-slate-100 rounded-lg"></div>
+    </div>
+
+    {/* Scores Row */}
+    <div className="grid grid-cols-3 gap-4 mb-8">
+       <div className="h-12 bg-slate-100 rounded"></div>
+       <div className="h-12 bg-slate-100 rounded"></div>
+       <div className="h-12 bg-slate-100 rounded"></div>
+    </div>
+
+    {/* Pros/Cons */}
+    <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="h-24 bg-slate-50 rounded border border-slate-100"></div>
+      <div className="h-24 bg-slate-50 rounded border border-slate-100"></div>
+    </div>
+
+    {/* Summary */}
+    <div className="space-y-2">
+       <div className="h-3 w-full bg-slate-200 rounded"></div>
+       <div className="h-3 w-5/6 bg-slate-200 rounded"></div>
+       <div className="h-3 w-4/5 bg-slate-200 rounded"></div>
     </div>
   </div>
 );
@@ -194,21 +221,22 @@ const App: React.FC = () => {
   }, [formData.price]);
 
   // Auto-calculate Insurance
+  // Changed logic: Only depend on sqMeters. Price is ignored.
   useEffect(() => {
-    const price = Number(formData.price);
     const sqMeters = Number(formData.sqMeters);
     const type = formData.propertyType || 'House';
     const address = formData.address || '';
     
-    if (price > 0) {
-      const updatedInsurance = calculateInsurance(price, type, sqMeters, address);
+    if (sqMeters > 0) {
+      // We pass 0 for price as it's not used in calculation anymore
+      const updatedInsurance = calculateInsurance(0, type, sqMeters, address);
       if (formData.insuranceYearly !== updatedInsurance) {
         setFormData(prev => ({ ...prev, insuranceYearly: updatedInsurance }));
       }
     } else if (formData.insuranceYearly !== '') {
         setFormData(prev => ({ ...prev, insuranceYearly: '' }));
     }
-  }, [formData.price, formData.propertyType, formData.sqMeters, formData.address]);
+  }, [formData.sqMeters, formData.propertyType, formData.address]);
 
   // Recalculate whenever form data changes
   useEffect(() => {
@@ -308,10 +336,16 @@ const App: React.FC = () => {
         const priceNum = Number(nextState.price);
         if (priceNum > 0) {
             nextState.propertyTaxYearly = calculateLPT(priceNum);
-            nextState.insuranceYearly = calculateInsurance(priceNum, nextState.propertyType || 'House', Number(nextState.sqMeters), nextState.address);
         } else {
             nextState.propertyTaxYearly = 0;
-            nextState.insuranceYearly = 0;
+        }
+
+        // Independent calculation for insurance based on sqMeters (ignores price)
+        const sqMetersNum = Number(nextState.sqMeters);
+        if (sqMetersNum > 0) {
+             nextState.insuranceYearly = calculateInsurance(0, nextState.propertyType || 'House', sqMetersNum, nextState.address);
+        } else {
+             nextState.insuranceYearly = 0;
         }
 
         return nextState;
@@ -394,8 +428,11 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20">
       {/* Navbar with Pastel Dark Green */}
-      <nav className="bg-[#335c4a] text-white shadow-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <nav className="bg-[#335c4a] text-white shadow-lg sticky top-0 z-50 relative overflow-hidden">
+        {/* Decorative background element to match sidebar cards */}
+        <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-emerald-800 rounded-full opacity-50 blur-2xl pointer-events-none"></div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between relative z-10">
           <div className="flex items-center gap-2">
             <Building className="h-6 w-6 text-emerald-300" />
             <span className="text-xl font-bold tracking-tight">ÉirEstate AI</span>
@@ -454,7 +491,7 @@ const App: React.FC = () => {
                 {activeTab === 'ai' ? (
                   <div className="space-y-4">
                     <p className="text-sm text-slate-600">
-                      Paste a property link from <strong>Daft.ie</strong> below. The app will extract details automatically.
+                      Paste a property link from <strong>Daft.ie</strong> below. <br /> The app will extract details automatically.
                     </p>
                     <textarea
                       className="w-full h-32 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-medium placeholder-slate-400 text-emerald-700 bg-emerald-50 disabled:bg-slate-50 disabled:text-slate-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-normal"
@@ -496,7 +533,7 @@ const App: React.FC = () => {
                         <div>
                           <InputLabel label="Address / Location" tooltip="The full address or general area of the property" />
                           <div className="relative">
-                            <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                            <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-emerald-600" />
                             <input
                               type="text"
                               name="address"
@@ -521,7 +558,8 @@ const App: React.FC = () => {
                                 name="price"
                                 value={formData.price}
                                 onChange={handleInputChange}
-                                className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.price ? 'border-rose-500' : 'border-slate-300'}`}
+                                placeholder="0"
+                                className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 placeholder-slate-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.price ? 'border-rose-500' : 'border-slate-300'}`}
                               />
                             </div>
                             {/* Validation message removed to allow 0 value */}
@@ -537,7 +575,8 @@ const App: React.FC = () => {
                                 name="rehabCost"
                                 value={formData.rehabCost}
                                 onChange={handleInputChange}
-                                className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.rehabCost ? 'border-rose-500' : 'border-slate-300'}`}
+                                placeholder="0"
+                                className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 placeholder-slate-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.rehabCost ? 'border-rose-500' : 'border-slate-300'}`}
                               />
                             </div>
                             {errors.rehabCost && <p className="text-xs text-rose-500 mt-1">{errors.rehabCost}</p>}
@@ -557,7 +596,8 @@ const App: React.FC = () => {
                                 name="bedrooms"
                                 value={formData.bedrooms !== undefined ? formData.bedrooms : ''}
                                 onChange={handleInputChange}
-                                className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.bedrooms ? 'border-rose-500' : 'border-slate-300'}`}
+                                placeholder="0"
+                                className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 placeholder-slate-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.bedrooms ? 'border-rose-500' : 'border-slate-300'}`}
                               />
                             </div>
                             {errors.bedrooms && <p className="text-xs text-rose-500 mt-1">{errors.bedrooms}</p>}
@@ -573,7 +613,8 @@ const App: React.FC = () => {
                                 name="bathrooms"
                                 value={formData.bathrooms !== undefined ? formData.bathrooms : ''}
                                 onChange={handleInputChange}
-                                className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.bathrooms ? 'border-rose-500' : 'border-slate-300'}`}
+                                placeholder="0"
+                                className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 placeholder-slate-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.bathrooms ? 'border-rose-500' : 'border-slate-300'}`}
                               />
                             </div>
                             {errors.bathrooms && <p className="text-xs text-rose-500 mt-1">{errors.bathrooms}</p>}
@@ -593,7 +634,8 @@ const App: React.FC = () => {
                                 name="sqMeters"
                                 value={formData.sqMeters !== undefined ? formData.sqMeters : ''}
                                 onChange={handleInputChange}
-                                className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.sqMeters ? 'border-rose-500' : 'border-slate-300'}`}
+                                placeholder="0"
+                                className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 placeholder-slate-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.sqMeters ? 'border-rose-500' : 'border-slate-300'}`}
                               />
                             </div>
                             {errors.sqMeters && <p className="text-xs text-rose-500 mt-1">{errors.sqMeters}</p>}
@@ -633,7 +675,8 @@ const App: React.FC = () => {
                               name="monthlyRent"
                               value={formData.monthlyRent}
                               onChange={handleInputChange}
-                              className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.monthlyRent ? 'border-rose-500' : 'border-slate-300'}`}
+                              placeholder="0"
+                              className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 placeholder-slate-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.monthlyRent ? 'border-rose-500' : 'border-slate-300'}`}
                               />
                             </div>
                             {errors.monthlyRent && <p className="text-xs text-rose-500 mt-1">{errors.monthlyRent}</p>}
@@ -656,6 +699,7 @@ const App: React.FC = () => {
                               name="propertyTaxYearly"
                               value={formData.propertyTaxYearly}
                               readOnly
+                              placeholder="0"
                               className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold text-slate-500 bg-slate-100 cursor-not-allowed select-none"
                               title="Auto-calculated based on property value bands"
                             />
@@ -672,6 +716,7 @@ const App: React.FC = () => {
                               name="insuranceYearly"
                               value={formData.insuranceYearly}
                               readOnly
+                              placeholder="0"
                               className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold text-slate-500 bg-slate-100 cursor-not-allowed select-none"
                               title="Auto-calculated based on price, type, and size"
                             />
@@ -688,7 +733,8 @@ const App: React.FC = () => {
                               name="mortgageMonthly"
                               value={formData.mortgageMonthly !== undefined ? formData.mortgageMonthly : ''}
                               onChange={handleInputChange}
-                              className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.mortgageMonthly ? 'border-rose-500' : 'border-slate-300'}`}
+                              placeholder="0"
+                              className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 placeholder-slate-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.mortgageMonthly ? 'border-rose-500' : 'border-slate-300'}`}
                             />
                           </div>
                           {errors.mortgageMonthly && <p className="text-xs text-rose-500 mt-1">{errors.mortgageMonthly}</p>}
@@ -704,7 +750,8 @@ const App: React.FC = () => {
                               name="managementFeePercent"
                               value={formData.managementFeePercent}
                               onChange={handleInputChange}
-                              className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.managementFeePercent ? 'border-rose-500' : 'border-slate-300'}`}
+                              placeholder="0"
+                              className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700 bg-emerald-50 placeholder-slate-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.managementFeePercent ? 'border-rose-500' : 'border-slate-300'}`}
                             />
                           </div>
                           {errors.managementFeePercent && <p className="text-xs text-rose-500 mt-1">{errors.managementFeePercent}</p>}
@@ -720,8 +767,8 @@ const App: React.FC = () => {
             <div className="bg-[#335c4a] rounded-xl p-6 text-white shadow-md relative overflow-hidden mb-6 group transition-colors">
                <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-emerald-800 rounded-full opacity-50 blur-2xl pointer-events-none"></div>
                <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
-                 <div className="bg-emerald-400/20 p-1.5 rounded-lg">
-                    <Calculator className="w-5 h-5 text-emerald-100" />
+                 <div className="bg-emerald-50 p-1.5 rounded-lg">
+                    <Calculator className="w-5 h-5 text-emerald-600" />
                  </div>
                  Mortgage Calculator
                </h3>
@@ -737,18 +784,21 @@ const App: React.FC = () => {
             </div>
 
             {/* AI Insight Trigger - (Swapped position & styled as white) */}
-            <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm relative overflow-hidden">
-               <h3 className="font-bold text-lg mb-2 flex items-center gap-2 text-slate-800">
-                 <Search className="w-5 h-5 text-emerald-600" />
+            <div className="bg-[#335c4a] rounded-xl p-6 text-white shadow-md relative overflow-hidden mb-6 group transition-colors">
+               <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-emerald-800 rounded-full opacity-50 blur-2xl pointer-events-none"></div>
+               <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
+                 <div className="bg-emerald-50 p-1.5 rounded-lg">
+                    <Search className="w-5 h-5 text-emerald-600" />
+                 </div>
                  Market Intelligence
                </h3>
-               <p className="text-slate-500 text-sm mb-4">
+               <p className="text-emerald-100 text-sm mb-4">
                  Use smart analysis to analyze rental demand and validate your pricing for this location.
                </p>
                <button
                 onClick={handleMarketAnalysis}
                 disabled={loadingState === LoadingState.ANALYZING}
-                className="w-full bg-slate-50 text-slate-700 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 font-semibold py-2 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+                className="w-full bg-white text-emerald-900 hover:bg-emerald-50 font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
                >
                  {loadingState === LoadingState.ANALYZING ? (
                    <Loader2 className="w-4 h-4 animate-spin" />
@@ -798,56 +848,142 @@ const App: React.FC = () => {
               <MarketInsightSkeleton />
             ) : marketInsight ? (
                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="flex items-center gap-2 mb-4">
-                  <Sparkles className="w-5 h-5 text-purple-600" />
-                  <h3 className="text-lg font-bold text-slate-800">AI Market Insights</h3>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-purple-600" />
+                    <h3 className="text-lg font-bold text-slate-800">AI Market Intelligence</h3>
+                  </div>
+                  <div className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                    marketInsight.demandLevel === 'High' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                    marketInsight.demandLevel === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                    'bg-slate-50 text-slate-600 border-slate-200'
+                  }`}>
+                    {marketInsight.demandLevel} Demand
+                  </div>
                 </div>
 
-                {/* Key Stats extracted from AI */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    {/* Est. Rent */}
-                    <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
-                         <h4 className="text-xs font-bold text-indigo-800 uppercase mb-1">Current Average Rent</h4>
-                         <p className="text-lg font-bold text-indigo-900">
-                             {marketInsight.averageRentEstimate || "N/A"}
+                {/* Row 1: Rent Estimates & Trends */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    {/* Est. Rent Block */}
+                    <div className="bg-indigo-50 rounded-xl p-5 border border-indigo-100 flex flex-col justify-between">
+                         <div>
+                            <h4 className="text-xs font-bold text-indigo-500 uppercase mb-2">Est. Monthly Rent</h4>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-3xl font-bold text-indigo-900">{formatCurrency(marketInsight.rentRangeLow)}</span>
+                                <span className="text-indigo-400 font-medium">-</span>
+                                <span className="text-xl font-bold text-indigo-700">{formatCurrency(marketInsight.rentRangeHigh)}</span>
+                            </div>
+                         </div>
+                         <p className="text-xs text-indigo-600/80 mt-3">
+                            Based on comparable {formData.bedrooms || '2'}-bed properties in the area.
                          </p>
                     </div>
 
+                    {/* Historical Trend Chart */}
+                    <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm relative overflow-hidden">
+                         <div className="flex items-center justify-between mb-2">
+                             <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                                <BarChart3 className="w-3 h-3" /> 3-Year Rental Trend
+                             </h4>
+                         </div>
+                         <div className="h-24 w-full">
+                           {marketInsight.rentHistory && marketInsight.rentHistory.length > 0 ? (
+                               <ResponsiveContainer width="100%" height="100%">
+                                  <AreaChart data={marketInsight.rentHistory}>
+                                      <defs>
+                                          <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                                              <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
+                                              <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                                          </linearGradient>
+                                      </defs>
+                                      <Tooltip 
+                                        contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px'}}
+                                        formatter={(value: number) => [formatCurrency(value), 'Avg Rent']}
+                                      />
+                                      <Area 
+                                        type="monotone" 
+                                        dataKey="price" 
+                                        stroke="#6366f1" 
+                                        strokeWidth={2}
+                                        fillOpacity={1} 
+                                        fill="url(#colorPrice)"
+                                        animationDuration={1500}
+                                        animationEasing="ease-in-out"
+                                      />
+                                  </AreaChart>
+                               </ResponsiveContainer>
+                           ) : (
+                               <div className="h-full flex items-center justify-center text-xs text-slate-400 italic">No trend data available</div>
+                           )}
+                         </div>
+                    </div>
+                </div>
+
+                {/* Row 2: Livability Scores */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8 p-5 bg-slate-50 rounded-xl border border-slate-100">
+                   <ScoreBar 
+                      label="Walkability" 
+                      score={marketInsight.walkabilityScore} 
+                      icon={Footprints} 
+                      colorClass="text-emerald-500" 
+                   />
+                   <ScoreBar 
+                      label="Safety Index" 
+                      score={marketInsight.safetyScore} 
+                      icon={ShieldCheck} 
+                      colorClass="text-blue-500" 
+                   />
+                   <ScoreBar 
+                      label="Transit" 
+                      score={marketInsight.transitScore} 
+                      icon={TrainFront} 
+                      colorClass="text-purple-500" 
+                   />
+                </div>
+
+                {/* Row 3: Pros & Cons */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     {/* Pros */}
-                    <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-100">
-                         <h4 className="text-xs font-bold text-emerald-800 uppercase mb-2 flex items-center gap-1">
-                             <ThumbsUp className="w-3 h-3" /> Pros
+                    <div>
+                         <h4 className="text-xs font-bold text-emerald-700 uppercase mb-3 flex items-center gap-1.5 border-b border-emerald-100 pb-2">
+                             <ThumbsUp className="w-3.5 h-3.5" /> Investment Pros
                          </h4>
-                         <ul className="text-sm text-slate-700 space-y-1 list-disc list-inside">
+                         <ul className="space-y-2">
                              {marketInsight.pros && marketInsight.pros.length > 0 ? (
-                                 marketInsight.pros.slice(0, 3).map((pro, i) => (
-                                     <li key={i}>{pro}</li>
+                                 marketInsight.pros.slice(0, 4).map((pro, i) => (
+                                     <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                                         <Check className="w-3.5 h-3.5 text-emerald-500 mt-1 shrink-0" />
+                                         <span>{pro}</span>
+                                     </li>
                                  ))
                              ) : (
-                                 <li className="text-slate-400 italic">No pros identified</li>
+                                 <li className="text-slate-400 text-sm italic">No pros identified</li>
                              )}
                          </ul>
                     </div>
 
                     {/* Cons */}
-                    <div className="bg-rose-50 p-4 rounded-lg border border-rose-100">
-                         <h4 className="text-xs font-bold text-rose-800 uppercase mb-2 flex items-center gap-1">
-                             <ThumbsDown className="w-3 h-3" /> Risks
+                    <div>
+                         <h4 className="text-xs font-bold text-rose-700 uppercase mb-3 flex items-center gap-1.5 border-b border-rose-100 pb-2">
+                             <ThumbsDown className="w-3.5 h-3.5" /> Investment Risks
                          </h4>
-                         <ul className="text-sm text-slate-700 space-y-1 list-disc list-inside">
+                         <ul className="space-y-2">
                              {marketInsight.cons && marketInsight.cons.length > 0 ? (
-                                 marketInsight.cons.slice(0, 3).map((con, i) => (
-                                     <li key={i}>{con}</li>
+                                 marketInsight.cons.slice(0, 4).map((con, i) => (
+                                     <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                                         <AlertCircle className="w-3.5 h-3.5 text-rose-500 mt-1 shrink-0" />
+                                         <span>{con}</span>
+                                     </li>
                                  ))
                              ) : (
-                                 <li className="text-slate-400 italic">No risks identified</li>
+                                 <li className="text-slate-400 text-sm italic">No risks identified</li>
                              )}
                          </ul>
                     </div>
                 </div>
 
                 {/* Formatted Content */}
-                <div className="bg-slate-50 p-5 rounded-lg border border-slate-100 mb-4">
+                <div className="bg-slate-50 p-5 rounded-lg border border-slate-100">
                   <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Executive Summary</h4>
                   <FormattedText text={marketInsight.summary} />
                 </div>
