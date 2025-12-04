@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { PropertyInput, MarketInsight } from "../types";
 
@@ -14,61 +13,120 @@ const getAiClient = () => {
   return new GoogleGenAI({ apiKey });
 };
 
+// Helper to extract unique ID from Daft URL
+const extractIdFromDaftUrl = (url: string): string => {
+  try {
+    // Matches /123456 at the end, or /123456? or /123456/
+    const match = url.match(/\/(\d{6,10})[\/?]?$/) || url.match(/\/(\d{6,10})[\/?]/);
+    return match ? match[1] : "";
+  } catch (e) {
+    return "";
+  }
+};
+
+// Helper to extract address hint from Daft URL
+const extractAddressFromDaftUrl = (url: string): string => {
+  try {
+    const urlObj = new URL(url);
+    const pathSegments = urlObj.pathname.split('/').filter(Boolean);
+    
+    // Daft URLs are typically /for-sale/property-type-address-slug/id
+    // We want the address-slug part
+    const slug = pathSegments.find(segment => 
+      segment.includes('-') && !segment.match(/^\d+$/) && segment !== 'for-sale' && segment !== 'for-rent'
+    );
+
+    if (!slug) return "";
+
+    // Common prefixes to strip for a cleaner address search.
+    // ORDER MATTERS: Longer prefixes should be checked before shorter ones (e.g. 'semi-detached-house' before 'house')
+    const prefixes = [
+      'detached-house', 'semi-detached-house', 'terraced-house', 'end-of-terrace-house', 
+      'townhouse', 'apartment', 'studio-apartment', 'duplex', 'bungalow', 'site', 'commercial',
+      'house' // generic fallback
+    ];
+
+    let cleanSlug = slug;
+    // Strip the ID from the end if it was caught in the slug (rare but possible with some formats)
+    cleanSlug = cleanSlug.replace(/-?\d+$/, '');
+
+    // Attempt to remove the property type prefix to isolate the address
+    for (const prefix of prefixes) {
+      if (cleanSlug.startsWith(prefix + '-')) {
+        cleanSlug = cleanSlug.substring(prefix.length + 1);
+        break; 
+      }
+    }
+
+    // Convert hyphens to spaces and capitalize words
+    return cleanSlug
+      .replace(/-/g, ' ')
+      .replace(/\b\w/g, l => l.toUpperCase())
+      .trim();
+
+  } catch (e) {
+    return "";
+  }
+};
+
 export const parsePropertyDescription = async (input: string): Promise<Partial<PropertyInput>> => {
   try {
     const ai = getAiClient();
-    const isUrl = input.trim().toLowerCase().startsWith('http') || input.trim().toLowerCase().startsWith('www');
+    const cleanInput = input.trim();
+    const isUrl = cleanInput.toLowerCase().startsWith('http') || cleanInput.toLowerCase().startsWith('www');
 
     if (isUrl) {
-      if (!input.includes('daft.ie')) {
+      if (!cleanInput.includes('daft.ie')) {
         throw new Error("Invalid URL. Only Daft.ie listings are supported.");
       }
 
-      // Use Search Grounding for URLs to find listing details
-      // Note: responseSchema/MimeType is NOT supported with Search tools, so we ask for raw JSON text.
+      // 1. Intelligent URL Parsing
+      const addressHint = extractAddressFromDaftUrl(cleanInput);
+      const daftId = extractIdFromDaftUrl(cleanInput);
+      
+      const searchContext = `Address Hint: "${addressHint}"\nDaft ID: "${daftId}"`;
+
+      // 2. Advanced Prompt with Search Grounding
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
-        contents: `I will provide a URL to a property listing on Daft.ie.
-        Search for the property listing at this URL and extract the details.
+        contents: `You are a real estate data extraction expert for the Irish market.
         
-        URL: ${input}
-
-        If you cannot find the exact page content via the URL directly, search specifically for the **address** visible in the URL to find the listing details.
-
-        **Daft.ie Extraction Rules:**
-        - Address: Extract the full property address.
-        - Price: Locate the div with attribute 'data-testid="price"'. Inside this div, find the <h2> element. Extract the exact text content (e.g. "€895,000"). You MUST remove the '€' symbol and ALL commas. Treat commas strictly as thousands separators (not decimals). Example: "€895,000" becomes 895000. Do NOT round, truncate, or return zero. If the element is missing or POA, return null.
+        Task: Extract structured data for a property listing on Daft.ie.
         
-        **Property Specs (Critical):**
-        - Look for the main property info bar which typically contains Beds, Baths, Area, and Type in that order.
-        - Beds: Look for text like "3 Bed" or "4 Bed". (Corresponds to data-testid="beds")
-        - Baths: Look for text like "1 Bath" or "3 Bath". (Corresponds to data-testid="baths")
-        - Area: Look for text like "108 m²" or "125 sq. m". (Corresponds to data-testid="floor-area")
-        - Type: Look for text like "Semi-D", "Terraced", "Detached", "Apartment". (Corresponds to data-testid="property-type")
-        
-        **Property Type Mapping:**
-        - If type is "Semi-D", map to "Semi-Detached House"
-        - If type is "Terraced", map to "Terraced House"
-        - If type is "End of Terrace", map to "End of Terrace House"
-        - If type is "Bungalow", map to "Bungalow"
+        Input URL: ${cleanInput}
+        ${searchContext}
 
-        Return a JSON object with these exact keys:
-        - address (string)
-        - price (number, integer only)
-        - bedrooms (number, or null if not found)
-        - bathrooms (number, or null if not found)
-        - sqMeters (number, or null if not found)
-        - propertyType (string, or null if not found)
-        - monthlyRent (number, estimate based on location/size if not explicit)
-        - propertyTaxYearly (number, estimated LPT)
-        - description (string, brief summary)
+        **Instructions:**
+        1. Use Google Search to find this specific Daft.ie listing. 
+        2. CRITICAL SEARCH STRATEGY: 
+           - Search for 'site:daft.ie ${daftId}' (This ID is unique and is the best way to find the page).
+           - Search for 'site:daft.ie "${addressHint}"'.
+        3. Extract the details below from the search snippets or page content. 
 
-        **Important:**
-        - If a specific count (like beds/baths) is not visibly listed, return null for that field. Do NOT guess.
-        - If the listing is sold, extract the sold price and details. Do NOT return an error.
-        - Only return a JSON with an "error" key if the URL is strictly invalid (404) or the page content is totally inaccessible.
+        **Extraction Rules & Patterns:**
+        - **Price**: Look for "€". Remove commas. If "Sale Agreed", the price might still be shown (e.g. "€249,000"). If "AMV", use that.
+        - **Address**: The full postal address.
+        - **Bedrooms**: Look for "Bed", "Beds". Return integer.
+        - **Bathrooms**: Look for "Bath", "Baths". Return integer. (Note: "3 Bath" means 3 bathrooms).
+        - **Floor Area**: Look for "m²" or "sq. m". (e.g. "110 m²"). If "sq. ft", convert to m² (divide by 10.764).
+        - **Property Type**: Look for terms like "Semi-D", "Terraced", "Detached". 
+          - MAPPING: "Semi-D" -> "Semi-Detached House". "Terrace" -> "Terraced House". "Apt" -> "Apartment".
+
+        Return ONLY a JSON object with this schema:
+        {
+          "address": string,
+          "price": number | null,
+          "bedrooms": number | null,
+          "bathrooms": number | null,
+          "sqMeters": number | null,
+          "propertyType": string,
+          "monthlyRent": number | null,
+          "description": string
+        }
         
-        Return ONLY the JSON string. Do not use markdown formatting.`,
+        For "monthlyRent", estimate conservatively if not a rental.
+        For "description", provide a 1-sentence summary.
+        `,
         config: {
           tools: [{ googleSearch: {} }]
         }
@@ -82,7 +140,7 @@ export const parsePropertyDescription = async (input: string): Promise<Partial<P
       const lastBrace = jsonStr.lastIndexOf('}');
       
       if (firstBrace === -1 || lastBrace === -1) {
-         throw new Error("Could not parse property data from the link provided.");
+         throw new Error("Could not retrieve property data. The listing might be inactive.");
       }
 
       jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
@@ -92,27 +150,44 @@ export const parsePropertyDescription = async (input: string): Promise<Partial<P
         throw new Error(result.error);
       }
       
-      // Apply sensible defaults if the AI returns null for specific fields
-      // This prevents the calculator from breaking on missing data
+      // Post-Processing & Fallbacks
+      // Improve Property Type mapping if AI was vague
+      const urlLower = cleanInput.toLowerCase();
+      let finalType = result.propertyType || "House";
+      
+      // Normalize common variations
+      if (finalType === "Semi-D") finalType = "Semi-Detached House";
+      if (finalType === "Terrace") finalType = "Terraced House";
+      if (finalType === "Apt") finalType = "Apartment";
+
+      // Fallback to URL hints if AI returned "House" or generic but URL is specific
+      if (finalType === "House") {
+        if (urlLower.includes('apartment')) finalType = "Apartment";
+        else if (urlLower.includes('semi-detached')) finalType = "Semi-Detached House";
+        else if (urlLower.includes('terraced')) finalType = "Terraced House";
+        else if (urlLower.includes('detached')) finalType = "Detached House";
+        else if (urlLower.includes('bungalow')) finalType = "Bungalow";
+      }
+
       return {
-        address: result.address || "",
+        address: result.address || addressHint || "", 
         price: typeof result.price === 'number' ? result.price : 0,
-        bedrooms: typeof result.bedrooms === 'number' ? result.bedrooms : 1, // Default to 1 bed
-        bathrooms: typeof result.bathrooms === 'number' ? result.bathrooms : 1, // Default to 1 bath
+        bedrooms: typeof result.bedrooms === 'number' ? result.bedrooms : 0,
+        bathrooms: typeof result.bathrooms === 'number' ? result.bathrooms : 1,
         sqMeters: typeof result.sqMeters === 'number' ? result.sqMeters : 0,
-        propertyType: result.propertyType || "House",
+        propertyType: finalType,
         monthlyRent: typeof result.monthlyRent === 'number' ? result.monthlyRent : 0,
-        propertyTaxYearly: typeof result.propertyTaxYearly === 'number' ? result.propertyTaxYearly : 500,
+        propertyTaxYearly: 0, // Force calc in UI
         description: result.description || ""
       };
 
     } else {
-      // Use Standard JSON Schema extraction for pasted text
+      // Use Standard JSON Schema extraction for pasted text (fallback)
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: `Extract property details from the following real estate listing text. Return a JSON object.
-        If a value is not found, estimate it conservatively based on standard Irish market rates or leave null.
-        Text: "${input}"`,
+        If a value is not found, leave null.
+        Text: "${cleanInput}"`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -124,11 +199,10 @@ export const parsePropertyDescription = async (input: string): Promise<Partial<P
               bathrooms: { type: Type.NUMBER },
               sqMeters: { type: Type.NUMBER },
               propertyType: { type: Type.STRING },
-              monthlyRent: { type: Type.NUMBER, description: "Estimated monthly rent if not specified, infer from location/size" },
-              propertyTaxYearly: { type: Type.NUMBER, description: "Local Property Tax estimate" },
+              monthlyRent: { type: Type.NUMBER },
               description: { type: Type.STRING }
             },
-            required: ["address", "price"],
+            required: ["address"],
           }
         }
       });
@@ -139,11 +213,13 @@ export const parsePropertyDescription = async (input: string): Promise<Partial<P
 
   } catch (error: any) {
     console.error("AI Parsing Error:", error);
-    // Propagate specific error messages
-    if (error.message && (error.message.includes("parse") || error.message.includes("listing") || error.message.includes("expired") || error.message.includes("Daft"))) {
-      throw error;
+    let msg = "Failed to import property details.";
+    if (error.message.includes("404") || error.message.includes("not found")) {
+      msg = "The property listing could not be found. Please check the URL.";
+    } else if (error.message.includes("JSON")) {
+      msg = "Could not read the property data. Please enter details manually.";
     }
-    throw new Error("Failed to process the request. Please check the link or input text.");
+    throw new Error(msg);
   }
 };
 
