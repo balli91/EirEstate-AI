@@ -65,6 +65,8 @@ const App: React.FC = () => {
   const handleLogout = (e: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setUser(null);
+    // Optional: Clear settings on logout if strict profile separation is needed
+    // localStorage.removeItem('eirestate_settings'); 
   };
 
   // Helper to apply settings to form data
@@ -118,6 +120,7 @@ const App: React.FC = () => {
            console.error("Error parsing settings", e);
          }
       }
+      // Fallback: DEFAULT_PROPERTY (already set in useState)
     }
   }, []);
 

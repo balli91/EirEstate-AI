@@ -6,7 +6,7 @@ import { formatCurrency } from '../utils/calculations';
 import MetricsCard from './MetricsCard';
 import Charts from './Charts';
 import {
-  Calculator,
+  Calculator as CalculatorIcon,
   Building,
   MapPin,
   Euro,
@@ -202,7 +202,7 @@ const Calculator: React.FC<CalculatorProps> = ({
                   activeTab === 'manual' ? 'bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                <Calculator className="w-4 h-4" /> Manual Input
+                <CalculatorIcon className="w-4 h-4" /> Manual Input
               </button>
               <button
                 onClick={() => setActiveTab('ai')}
@@ -550,7 +550,7 @@ const Calculator: React.FC<CalculatorProps> = ({
              <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-emerald-800 rounded-full opacity-50 blur-2xl pointer-events-none"></div>
              <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
                <div className="bg-emerald-50 p-1.5 rounded-lg">
-                  <Calculator className="w-5 h-5 text-emerald-600" />
+                  <CalculatorIcon className="w-5 h-5 text-emerald-600" />
                </div>
                Mortgage Calculator
              </h3>

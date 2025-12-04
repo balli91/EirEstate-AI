@@ -27,10 +27,11 @@ const Settings: React.FC<SettingsProps> = ({ user, onLogin, onLogout, onSettings
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Preferences State
+  // UPDATED: Defaults match constants.ts (Mgmt 8, Maint 5, Vacancy 4)
   const [defaults, setDefaults] = useState({
-    mgmtFee: '10',
+    mgmtFee: '8',
     maintenance: '5',
-    vacancy: '8',
+    vacancy: '4',
     currency: 'EUR'
   });
 
