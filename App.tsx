@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { PropertyInput, AnalysisResult, MarketInsight, LoadingState, SavedProperty } from './types';
 import { calculateROI, formatCurrency, calculateLPT, calculateInsurance } from './utils/calculations';
-import { parsePropertyDescription, analyzeMarket } from './services/gemini';
+import { parsePropertyDescription } from './services/smartImport';
+import { analyzeMarket } from './services/gemini';
 import { DEFAULT_PROPERTY } from './constants';
 import MortgageCalculatorModal from './components/MortgageCalculatorModal';
 import LoginModal from './components/LoginModal';
