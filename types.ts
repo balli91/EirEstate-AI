@@ -8,6 +8,9 @@ export interface PropertyInput {
   insuranceYearly: number | '';
   managementFeePercent: number | '';
   mortgageMonthly: number | '';
+  maintenanceReservePercent?: number | '';
+  vacancyRate?: number | '';
+  otherExpensesYearly?: number | '';
   description?: string;
   bedrooms?: number | '';
   bathrooms?: number | '';
@@ -24,6 +27,25 @@ export interface AnalysisResult {
   totalInvestment: number;
   monthlyExpenses: number;
   capRate: number;
+}
+
+export interface SavedProperty {
+  id: string;
+  timestamp: number;
+  input: PropertyInput;
+}
+
+export interface Contact {
+  id: string;
+  firstName: string;
+  surname: string;
+  profession: string;
+  email: string;
+  phone: string;
+  address: string;
+  eircode: string;
+  notes: string;
+  createdAt: number;
 }
 
 export interface SensitivityItem {

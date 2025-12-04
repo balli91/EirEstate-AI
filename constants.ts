@@ -1,3 +1,4 @@
+
 export const DEFAULT_PROPERTY: any = {
   address: '',
   price: '',
@@ -7,6 +8,9 @@ export const DEFAULT_PROPERTY: any = {
   insuranceYearly: '',
   managementFeePercent: '',
   mortgageMonthly: '',
+  maintenanceReservePercent: 5,
+  vacancyRate: 5,
+  otherExpensesYearly: '',
   description: '',
   bedrooms: '',
   bathrooms: '',

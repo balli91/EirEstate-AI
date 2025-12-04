@@ -1,6 +1,9 @@
+
 import { PropertyInput, AnalysisResult, SensitivityItem } from '../types';
+import { DEFAULT_PROPERTY } from '../constants';
 
 export const formatCurrency = (value: number): string => {
+  if (value === undefined || value === null || isNaN(value)) return '€0.00';
   return new Intl.NumberFormat('en-IE', {
     style: 'currency',
     currency: 'EUR',
@@ -76,13 +79,9 @@ export const calculateLPT = (marketValue: number | string): number => {
 
 export const calculateInsurance = (price: number, propertyType: string, sqMeters: number, address: string): number => {
   // 1. Rebuild cost calculation
-  // Rule: rebuildCost = squareMeters * 2000 (Standard reinstatement cost: €2,000 per m²)
-  // Note: We intentionally do not use price as a fallback anymore to ensure independence of fields.
-  
   if (sqMeters > 0) {
     const rebuildCost = sqMeters * 2000;
     // 2. Insurance premium calculation
-    // Formula: insurance = rebuildCost * 0.0012 (base) + rebuildCost * 0.0003 (risk)
     // Total effective premium = 0.15% of rebuild cost
     return Math.round(rebuildCost * 0.0015);
   } 
@@ -106,14 +105,29 @@ export const calculateMortgagePayment = (principal: number, annualRatePercent: n
 };
 
 export const calculateROI = (input: PropertyInput): AnalysisResult => {
+  // Defensive check for missing input or input being null
+  const safeInput = (input && typeof input === 'object') ? input : DEFAULT_PROPERTY;
+
   // Safe cast all inputs to numbers to handle empty strings ('') from UI
-  const price = Number(input.price) || 0;
-  const monthlyRent = Number(input.monthlyRent) || 0;
-  const rehabCost = Number(input.rehabCost) || 0;
-  const propertyTaxYearly = Number(input.propertyTaxYearly) || 0;
-  const insuranceYearly = Number(input.insuranceYearly) || 0;
-  const managementFeePercent = Number(input.managementFeePercent) || 0;
-  const mortgageMonthly = Number(input.mortgageMonthly) || 0;
+  // Use ?. operator to safely access properties even if safeInput is somehow malformed
+  const price = Number(safeInput?.price) || 0;
+  const monthlyRent = Number(safeInput?.monthlyRent) || 0;
+  const rehabCost = Number(safeInput?.rehabCost) || 0;
+  const propertyTaxYearly = Number(safeInput?.propertyTaxYearly) || 0;
+  const insuranceYearly = Number(safeInput?.insuranceYearly) || 0;
+  const managementFeePercent = Number(safeInput?.managementFeePercent) || 0;
+  const mortgageMonthly = Number(safeInput?.mortgageMonthly) || 0;
+  const otherExpensesYearly = Number(safeInput?.otherExpensesYearly) || 0;
+  
+  // Use provided maintenance percent, or default to 5 if undefined. 
+  const maintenanceReservePercent = safeInput?.maintenanceReservePercent !== undefined && safeInput?.maintenanceReservePercent !== ''
+    ? Number(safeInput.maintenanceReservePercent)
+    : 5;
+
+  // Use provided vacancy rate, or default to 5 if undefined
+  const vacancyRate = safeInput?.vacancyRate !== undefined && safeInput?.vacancyRate !== ''
+    ? Number(safeInput.vacancyRate)
+    : 5;
 
   // Initial Costs
   // Stamp Duty in Ireland: 1% up to 1m, 2% balance. Simplified to 1% for standard inputs.
@@ -125,13 +139,14 @@ export const calculateROI = (input: PropertyInput): AnalysisResult => {
 
   // Income
   const annualGrossRent = monthlyRent * 12;
+  const vacancyLoss = annualGrossRent * (vacancyRate / 100);
 
   // Expenses
   const managementFeeYearly = annualGrossRent * (managementFeePercent / 100);
-  const maintenanceYearly = annualGrossRent * 0.05; // 5% maintenance reserve
+  const maintenanceYearly = annualGrossRent * (maintenanceReservePercent / 100);
   
-  // Operating Expenses (Tax + Insurance + Mgmt + Maint)
-  const totalOperatingExpenses = propertyTaxYearly + insuranceYearly + managementFeeYearly + maintenanceYearly;
+  // Operating Expenses (Tax + Insurance + Mgmt + Maint + Other)
+  const totalOperatingExpenses = propertyTaxYearly + insuranceYearly + managementFeeYearly + maintenanceYearly + otherExpensesYearly;
   
   // Debt Service
   const annualDebtService = mortgageMonthly * 12;
@@ -141,7 +156,7 @@ export const calculateROI = (input: PropertyInput): AnalysisResult => {
   const monthlyExpenses = totalAnnualExpenses / 12;
 
   // Returns
-  const annualNetOperatingIncome = annualGrossRent - totalOperatingExpenses; // NOI excludes debt
+  const annualNetOperatingIncome = annualGrossRent - vacancyLoss - totalOperatingExpenses; // NOI excludes debt, includes vacancy loss
   const annualCashFlow = annualNetOperatingIncome - annualDebtService; // Cashflow includes debt
 
   // Metrics - Ensure we don't divide by zero to avoid NaN/Infinity
@@ -151,9 +166,6 @@ export const calculateROI = (input: PropertyInput): AnalysisResult => {
   // Cap Rate (NOI / Price)
   const capRate = price > 0 ? (annualNetOperatingIncome / price) * 100 : 0;
   // Cash on Cash (Cashflow / Total Investment)
-  // Note: For true Cash on Cash with leverage, Total Investment should strictly be Cash Invested (Deposit + Costs).
-  // As we don't have explicit Deposit input, we assume TotalInvestment is the denominator for now, 
-  // which makes this "Return on Total Capital" if fully leveraged, or standard CoC if cash purchase.
   const cashOnCash = totalInvestment > 0 ? (annualCashFlow / totalInvestment) * 100 : 0;
 
   return {
@@ -169,7 +181,8 @@ export const calculateROI = (input: PropertyInput): AnalysisResult => {
 };
 
 export const calculateSensitivity = (input: PropertyInput): SensitivityItem[] => {
-  const baseResult = calculateROI(input);
+  const safeInput = input || DEFAULT_PROPERTY;
+  const baseResult = calculateROI(safeInput);
   const baseNetYield = baseResult.netYield;
 
   const results: SensitivityItem[] = [];
@@ -178,10 +191,10 @@ export const calculateSensitivity = (input: PropertyInput): SensitivityItem[] =>
   const clone = (data: PropertyInput) => ({ ...data });
 
   // 1. Rent (+/- 10%)
-  const rentLow = clone(input);
-  rentLow.monthlyRent = (Number(input.monthlyRent) || 0) * 0.9;
-  const rentHigh = clone(input);
-  rentHigh.monthlyRent = (Number(input.monthlyRent) || 0) * 1.1;
+  const rentLow = clone(safeInput);
+  rentLow.monthlyRent = (Number(safeInput.monthlyRent) || 0) * 0.9;
+  const rentHigh = clone(safeInput);
+  rentHigh.monthlyRent = (Number(safeInput.monthlyRent) || 0) * 1.1;
   results.push({
     variable: 'Rent ±10%',
     base: baseNetYield,
@@ -190,32 +203,29 @@ export const calculateSensitivity = (input: PropertyInput): SensitivityItem[] =>
   });
 
   // 2. Vacancy (+/- 5%)
-  // Simulating vacancy by adjusting effective gross rent.
-  // "Higher Vacancy" (Low Input Scenario basically) means Less Rent.
-  // +5% Vacancy -> -5% Rent.
-  // -5% Vacancy -> +5% Rent (Outperformance/Better than base).
-  const vacancyHigh = clone(input); // More vacancy = Bad
-  vacancyHigh.monthlyRent = (Number(input.monthlyRent) || 0) * 0.92;
-  const vacancyLow = clone(input); // Less vacancy = Good
-  vacancyLow.monthlyRent = (Number(input.monthlyRent) || 0) * 1;
+  const currentVacancy = Number(safeInput.vacancyRate) || 5;
+  const vacancyHigh = clone(safeInput); // More vacancy = Bad
+  vacancyHigh.vacancyRate = currentVacancy + 5;
+  const vacancyLow = clone(safeInput); // Less vacancy = Good
+  vacancyLow.vacancyRate = Math.max(0, currentVacancy - 5);
+  
   results.push({
-    variable: 'Vacancy 8%',
+    variable: 'Vacancy ±5%',
     base: baseNetYield,
-    // "yieldLowInput" here conceptually maps to "Worse Condition" which is High Vacancy
     yieldLowInput: calculateROI(vacancyHigh).netYield, 
     yieldHighInput: calculateROI(vacancyLow).netYield
   });
 
   // 3. Management Fee (+/- 2%)
-  const mgmtLow = clone(input);
-  mgmtLow.managementFeePercent = Math.max(0, (Number(input.managementFeePercent) || 0) - 2);
-  const mgmtHigh = clone(input);
-  mgmtHigh.managementFeePercent = (Number(input.managementFeePercent) || 0) + 2;
+  const mgmtLow = clone(safeInput);
+  mgmtLow.managementFeePercent = Math.max(0, (Number(safeInput.managementFeePercent) || 0) - 2);
+  const mgmtHigh = clone(safeInput);
+  mgmtHigh.managementFeePercent = (Number(safeInput.managementFeePercent) || 0) + 2;
   results.push({
     variable: 'Mgmt Fee ±2%',
     base: baseNetYield,
-    yieldLowInput: calculateROI(mgmtHigh).netYield, // Higher fee = Lower Yield (Worse)
-    yieldHighInput: calculateROI(mgmtLow).netYield  // Lower fee = Higher Yield (Better)
+    yieldLowInput: calculateROI(mgmtHigh).netYield, 
+    yieldHighInput: calculateROI(mgmtLow).netYield 
   });
 
   return results;

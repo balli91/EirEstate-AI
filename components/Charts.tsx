@@ -19,8 +19,10 @@ const MonthlyBreakdownTooltip = ({ active, payload, label, input }: any) => {
         const monthlyInsurance = (Number(input.insuranceYearly) || 0) / 12;
         const annualGrossRent = (Number(input.monthlyRent) || 0) * 12;
         const monthlyMgmt = (annualGrossRent * ((Number(input.managementFeePercent) || 0) / 100)) / 12;
-        const monthlyMaint = (annualGrossRent * 0.05) / 12;
+        const maintPercent = input.maintenanceReservePercent !== undefined && input.maintenanceReservePercent !== '' ? Number(input.maintenanceReservePercent) : 5;
+        const monthlyMaint = (annualGrossRent * (maintPercent / 100)) / 12;
         const monthlyMortgage = Number(input.mortgageMonthly) || 0;
+        const monthlyOther = (Number(input.otherExpensesYearly) || 0) / 12;
 
         // Detailed view for Expenses
         if (data.name === 'Expenses') {
@@ -33,7 +35,8 @@ const MonthlyBreakdownTooltip = ({ active, payload, label, input }: any) => {
                         <div className="flex justify-between"><span>LPT:</span><span className="font-medium">{formatCurrency(monthlyTax)}</span></div>
                         <div className="flex justify-between"><span>Insurance:</span><span className="font-medium">{formatCurrency(monthlyInsurance)}</span></div>
                         <div className="flex justify-between"><span>Mgmt Fee:</span><span className="font-medium">{formatCurrency(monthlyMgmt)}</span></div>
-                         <div className="flex justify-between"><span>Maintenance (5%):</span><span className="font-medium">{formatCurrency(monthlyMaint)}</span></div>
+                         <div className="flex justify-between"><span>Maintenance ({maintPercent}%):</span><span className="font-medium">{formatCurrency(monthlyMaint)}</span></div>
+                         <div className="flex justify-between"><span>Other:</span><span className="font-medium">{formatCurrency(monthlyOther)}</span></div>
                     </div>
                 </div>
             );
@@ -206,12 +209,17 @@ const Charts: React.FC<ChartsProps> = ({ analysis, input }) => {
   const annualGrossRent = (Number(input.monthlyRent) || 0) * 12;
   const monthlyMgmt = (annualGrossRent * ((Number(input.managementFeePercent) || 0) / 100)) / 12;
   const monthlyMortgage = Number(input.mortgageMonthly) || 0;
+  
+  const maintPercent = input.maintenanceReservePercent !== undefined && input.maintenanceReservePercent !== '' ? Number(input.maintenanceReservePercent) : 5;
+  const monthlyMaint = (annualGrossRent * (maintPercent / 100)) / 12;
+  const monthlyOther = (Number(input.otherExpensesYearly) || 0) / 12;
 
   const expenseData = [
-      { name: 'Property Tax', value: monthlyTax, color: '#9FA8DA' },
-      { name: 'Insurance', value: monthlyInsurance, color: '#80CBC4' },
       { name: 'Mortgage', value: monthlyMortgage, color: '#EF9A9A' },
+      { name: 'Tax & Ins', value: monthlyTax + monthlyInsurance, color: '#9FA8DA' },
       { name: 'Mgmt Fee', value: monthlyMgmt, color: '#FFCC80' },
+      { name: 'Maint', value: monthlyMaint, color: '#B39DDB' }, // Soft Purple
+      { name: 'Other', value: monthlyOther, color: '#B0BEC5' }, // Blue Grey
   ].filter(item => item.value > 0);
 
   const totalMonthlyExpenses = expenseData.reduce((sum, item) => sum + item.value, 0);
